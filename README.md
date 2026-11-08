@@ -1,155 +1,180 @@
-# 🖥️ Personal NAS Server (`nasproject`)
+<div align="center">
 
-โปรเจกต์ระบบ **NAS (Network Attached Storage) Server** ที่พัฒนาขึ้นเอง สำหรับเปลี่ยน PC ให้เป็นเซิร์ฟเวอร์จัดเก็บไฟล์ส่วนตัว แชร์ไฟล์ภายในบ้าน ต่อเป็น Network Drive (WebDAV) และตรวจสอบสถานะฮาร์ดแวร์ผ่าน Web Dashboard
+# ⚡ Personal NAS Server (`WattVision NAS OS`)
+### High-Speed Private Cloud, Resilient Chunked Upload & Real-Time Hardware Telemetry
 
----
+[![Node.js Version](https://img.shields.io/badge/Node.js-22%2B%20%7C%2025%2B-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Database](https://img.shields.io/badge/Database-SQLite%20(node%3Asqlite)-003B57?logo=sqlite&logoColor=white)](https://nodejs.org/api/sqlite.html)
+[![WebDAV](https://img.shields.io/badge/Protocol-WebDAV%20RFC%204918-00E5FF)](https://datatracker.ietf.org/doc/html/rfc4918)
+[![Security](https://img.shields.io/badge/Security-AES--256--GCM-32D74B)](https://en.wikipedia.org/wiki/Galois/Counter_Mode)
+[![Zero Dependencies](https://img.shields.io/badge/Dependencies-Zero%20(Pure%20Built--in)-success)](#)
 
-## 🏗️ สถาปัตยกรรมของระบบ (System Architecture)
-
-1. **Client / Frontend Layer (หน้าบ้าน):**
-   - Web Dashboard สำหรับจัดการไฟล์ (File Explorer แบบ Grid/List, Sorting, Multi-select, Move/Copy, Drag & Drop Chunked Upload พร้อมแสดง `%` ความเร็วและเวลาที่เหลือแบบสดๆ, Media Preview)
-   - หน้าค้นหาทั่วระบบ & ตรวจจับไฟล์ซ้ำ (Global Search & Duplicate File Detector)
-   - หน้าจัดการ Auto-Backup Snapshots และคู่มือเชื่อมต่อ WebDAV Network Drive
-   - หน้า Public Share Portal (`/s/:token`) สำหรับผู้รับลิงก์ภายนอก (ไม่ต้องล็อกอิน NAS, รองรับการกรอกรหัสผ่านปลดล็อกลิงก์)
-   - หน้าจัดการผู้ใช้ โควตาพื้นที่ และนโยบายนามสกุลไฟล์ (Admin User, Quota & Extension Policy)
-   - หน้า Recycle Bin (ถังขยะพร้อมระบบกู้คืนไปยัง Path เดิม)
-   - หน้า System Monitor แสดงสถานะ CPU, RAM, พื้นที่ Disk และ IP ในวง LAN แบบ Real-time
-2. **API, WebDAV & Core Backend Layer (หลังบ้าน):**
-   - ระบบ Authentication & Role-based Access (`admin` / `user`) พร้อมระบบ Home Directory Isolation (`storage/files/Users/{username}`)
-   - **WebDAV Server (`src/webdav.js`):** รองรับโปรโตคอล RFC 4918 (`OPTIONS`, `PROPFIND`, `GET`, `PUT`, `MKCOL`, `DELETE`, `MOVE`, `COPY`, `LOCK`, `UNLOCK`) เพื่อเชื่อมต่อเป็น Network Drive บน macOS Finder และ Windows Explorer ได้ทันที
-   - ระบบตรวจสอบโควตาพื้นที่รายบุคคล (`assertQuotaAvailable`) และนโยบายคัดกรองนามสกุลไฟล์ (`assertExtensionAllowed`)
-   - ระบบจัดการไฟล์แบบ Stream และ **Chunked Resumable Upload** เพื่อรองรับไฟล์ขนาดใหญ่โดยไม่กิน RAM
-   - ระบบบีบอัดไฟล์ `.zip` แบบ Stream on-the-fly (`src/zip.js`)
-3. **Database, Indexer & Scheduler Layer:**
-   - ใช้ **SQLite** (`node:sqlite` Built-in) เก็บข้อมูลผู้ใช้ (`users`), ถังขยะ (`trash_items`), สถานะอัปโหลด (`upload_sessions`), ลิงก์แชร์ (`share_links`), ดัชนีไฟล์ (`file_index`), และการตั้งค่าระบบ (`system_settings`)
-   - **Fast File Indexer (`src/indexer.js`):** สแกนและทำดัชนีไฟล์ลง SQLite พร้อมระบบเปรียบเทียบ Hash (`SHA-256`) เพื่อตรวจจับไฟล์ซ้ำซ้อน
-   - **Auto-Backup & Task Scheduler (`src/scheduler.js`):** สร้างไฟล์สำรองข้อมูล `.zip` อัตโนมัติลง `storage/backups/`, หมุนเวียนไฟล์สำรองตามจำนวนที่กำหนด, และลบไฟล์เก่าในถังขยะอัตโนมัติ
-4. **Storage & OS Integration Layer:**
-   - เชื่อมต่อกับ Filesystem จริง (`storage/files`, `storage/trash`, `storage/backups`, และ `storage/.cache`)
-   - สร้างและแคชภาพย่ออัตโนมัติ (`src/thumbnails.js`)
-   - ดึงข้อมูลฮาร์ดแวร์จาก OS โดยตรง (`os.cpus`, `os.freemem`, `fs.statfsSync`, `os.networkInterfaces`)
+ระบบ **Personal NAS (Network Attached Storage)** พัฒนาด้วย Pure Node.js Built-in 100% ไม่พึ่งพา external npm packages ออกแบบมาเพื่อเปลี่ยนคอมพิวเตอร์หรือเครื่องเซิร์ฟเวอร์ในบ้านให้กลายเป็น Private Cloud ประสิทธิภาพสูง รองรับการสลับไดรฟ์จัดเก็บข้อมูลภายนอก (External HDD/SSD Storage Pool) และเชื่อมต่อเป็น Network Drive บน macOS / Windows ได้ทันที
 
 ---
 
-## 🗺️ 5. แผนการพัฒนาทีละขั้น (Roadmap แนะนำ) — *พัฒนาครบทั้ง 9 เฟสแล้ว!*
+</div>
 
-### ✅ Phase 1: Core Storage & UI (ระบบจัดเก็บไฟล์พื้นฐานและหน้าเว็บหลัก) — *[ดำเนินการแล้ว]*
-- [x] **ระบบ Authentication:** หน้า Login พร้อมระบบจัดการ Session และผู้ใช้เริ่มต้น (`admin`)
-- [x] **System Dashboard:** แสดงพื้นที่ Disk (Used / Free / Total), เปอร์เซ็นต์การใช้ CPU, RAM และหมายเลข LAN IP ของเครื่องเซิร์ฟเวอร์แบบ Real-time
-- [x] **File Explorer บนเว็บ:**
-  - ดูรายการไฟล์และโฟลเดอร์พร้อม Breadcrumb Navigation
-  - สลับมุมมอง List View / Grid View, ค้นหาไฟล์, และ **จัดเรียงไฟล์ (Sort by ชื่อ / ขนาด / วันที่แก้ไข)**
-  - สร้างโฟลเดอร์ใหม่ (Create Folder), เปลี่ยนชื่อ (Rename), **ย้าย (Move)** และ **คัดลอก (Copy)** ข้ามโฟลเดอร์
-  - อัปโหลดไฟล์พร้อมแถบสถานะ (Progress Bar) และรองรับการลากวาง (Drag & Drop)
-  - ดาวน์โหลดไฟล์ และเปิดดูตัวอย่างไฟล์เบื้องต้น (Preview รูปภาพ, วิดีโอ, เสียง, PDF, และแก้ไขไฟล์ข้อความ/โค้ดบนเว็บ)
-- [x] **ระบบถังขยะ (Recycle Bin):**
-  - ลบไฟล์/โฟลเดอร์เข้าถังขยะโดยไม่สูญหายทันที (รองรับการเลือกหลายรายการพร้อมกัน)
-  - กู้คืนไฟล์ (Restore) กลับไปยังโฟลเดอร์ต้นทางเดิม หรือสั่งลบถาวร (Permanent Delete / Empty Trash)
+## 📸 ภาพตัวอย่างการทำงานของระบบ (Visual Showcase)
 
-### ✅ Phase 2: Media & Large Files (ระบบสื่อมัลติมีเดียและไฟล์ขนาดใหญ่) — *[ดำเนินการแล้ว]*
-- [x] **Thumbnail Generator:** สร้างและแคชภาพย่อ (Thumbnails) สำหรับรูปภาพและวิดีโออัตโนมัติใน `storage/.cache/thumbnails/` เพื่อให้แสดงภาพตัวอย่างในหน้าเว็บได้รวดเร็ว
-- [x] **Chunked & Resumable Upload:** หั่นไฟล์ขนาดใหญ่ออกเป็นชิ้นย่อยขณะอัปโหลด แสดงเปอร์เซ็นต์ความคืบหน้า (`%`), ความเร็ว (`MB/s`), เวลาที่เหลือ (`ETA`) แบบสดๆ รองรับการกดหยุดพัก (**⏸️ พัก / ▶️ ทำต่อ**) และอัปโหลดต่อจากจุดเดิมอัตโนมัติเมื่อเน็ตหลุด
-- [x] **Multi-file ZIP Download:** เลือกหลายไฟล์หรือทั้งโฟลเดอร์แล้วดาวน์โหลดออกมาเป็นไฟล์ `.zip` แบบ Stream on-the-fly ทันที
+### 1. หน้าจอเข้าสู่ระบบ (WattVision Authentication & Security Portal)
+ดีไซน์สไตล์ Modern Glassmorphism & Neumorphism พร้อมระบบป้องกันการสุ่มรหัสผ่าน (Brute-Force Lockout) และสลับธีมมืด/สว่างได้ในคลิกเดียว
 
-### ✅ Phase 3: Multi-user & Sharing (ระบบหลายผู้ใช้และการแชร์ไฟล์) — *[ดำเนินการแล้ว]*
-- [x] **User Management & Home Isolation:** แอดมินสามารถสร้าง/แก้ไข/ลบบัญชีผู้ใช้แยกแต่ละคน โดยแต่ละคนมีโฟลเดอร์ส่วนตัวแยกกัน (`storage/files/Users/{username}`) และตั้งค่านโยบายนามสกุลไฟล์ (Allow All / Blocklist / Allowlist) ได้
-- [x] **Storage Quota:** กำหนดเพดานพื้นที่จัดเก็บข้อมูลรายบุคคล (เช่น จำกัดคนละ 10 GB) พร้อมคำนวณพื้นที่ใช้งานจริงและบล็อกการอัปโหลด/คัดลอกทันทีเมื่อเกินโควตา
-- [x] **Public Share Links (`/s/:token`):** สร้างลิงก์สำหรับแชร์ไฟล์หรือโฟลเดอร์ให้คนภายนอกเข้าถึงได้โดยไม่ต้องมีบัญชี NAS พร้อมตั้งรหัสผ่านป้องกัน (Password Protection), วันหมดอายุ (Expiration Date), และจำกัดจำนวนครั้งที่ดาวน์โหลด (Max Downloads)
+<div align="center">
+  <img src="docs/screenshots/01-login-screen.png" alt="WattVision NAS OS Login Screen" width="900" style="border-radius: 12px; box-shadow: 0 12px 36px rgba(0,0,0,0.4);" />
+</div>
 
-### ✅ Phase 4: Advanced NAS Features (ฟีเจอร์ระดับเซิร์ฟเวอร์ขั้นสูง) — *[ดำเนินการแล้ว]*
-- [x] **WebDAV Server Integration (`/webdav/`):** เชื่อมต่อ NAS เข้ากับ Windows Explorer (Map Network Drive) หรือ macOS Finder (`Cmd + K`) ได้โดยตรงแบบอ่าน/เขียน (Read/Write) ไม่ต้องผ่านเว็บเบราว์เซอร์
-- [x] **Fast File Indexing & Global Search (`src/indexer.js`):** ระบบสแกนและทำดัชนีไฟล์ทั้งหมดลง SQLite เพื่อค้นหาไฟล์ข้ามโฟลเดอร์ได้อย่างรวดเร็วและตรวจจับไฟล์ซ้ำด้วย SHA-256 (Duplicate Files Detector)
-- [x] **Auto-Backup & Scheduled Tasks (`src/scheduler.js`):** ตั้งเวลาสร้างไฟล์สำรองข้อมูล `.zip` อัตโนมัติลง `storage/backups/`, หมุนเวียนชุดสำรองข้อมูลเก่า, และล้างไฟล์ในถังขยะอัตโนมัติเมื่อครบกำหนดวัน
+<br/>
 
-### ✅ Phase 5: Smart & Enterprise NAS Features (ระบบอัจฉริยะและความปลอดภัยระดับ Enterprise) — *[ดำเนินการแล้ว]*
-- [x] **Activity Audit Logs & Brute-force Protection (`src/phase5.js`):** บันทึกทุกเหตุการณ์สำคัญในระบบ (Login, Failed Login, Upload, Download, Delete, Share, File Edit, Remote URL Fetch, Version Rollback) พร้อมเลข IP และล็อก IP อัตโนมัติ 15 นาทีเมื่อล็อกอินผิดครบ 5 ครั้ง
-- [x] **Favorites (Starred Files) & Quick File Creator:** ปักหมุดไฟล์และโฟลเดอร์สำคัญไว้ในหน้า `⭐ รายการโปรด` และปุ่ม `📝 สร้างไฟล์ใหม่` สำหรับสร้างไฟล์ข้อความ/Markdown/โค้ดบนเว็บได้ทันที
-- [x] **Photo Gallery & Media Center with Lightbox Slideshow:** หน้า `📸 แกลเลอรีรูป & วิดีโอ` ที่รวบรวมสื่อจากทุกโฟลเดอร์พร้อมโหมดสไลด์โชว์เต็มจอ (`◀ ก่อนหน้า` / `ถัดไป ▶` และปุ่มลูกศรคีย์บอร์ด)
-- [x] **Remote URL Downloader (Cloud Fetch):** วางลิงก์ไฟล์ภายนอก (`http://` หรือ `https://`) เพื่อให้เซิร์ฟเวอร์ NAS ดึงไฟล์ลงโฟลเดอร์ปลายทางโดยตรง
-- [x] **File Versioning & Rollback (`storage/.cache/versions/`):** เก็บประวัติเวอร์ชันย้อนหลังของไฟล์อัตโนมัติทุกครั้งที่แก้ไขข้อความ (หรือกดสร้าง Snapshot เอง) พร้อมปุ่ม `⏪ ย้อนคืนเวอร์ชันนี้ (Rollback)` สูงสุด 10 เวอร์ชันต่อไฟล์
+### 2. พื้นที่จัดการไฟล์และเวิร์กสเปซ (File Explorer & Multi-User Workspace)
+จัดการไฟล์ความเร็วสูง รองรับการลากวาง (Drag & Drop), คลิกขวาเปิด Finder Context Menu, แสดงแถบไฟล์ที่ใช้งานล่าสุด (Recent Files), สร้างไฟล์ข้อความ/Markdown ได้ในเว็บ และแชร์ลิงก์สาธารณะ
 
-### ✅ Phase 6: Ultimate NAS Power Features (ฟีเจอร์ระดับท็อปของ NAS สมัยใหม่) — *[ดำเนินการแล้ว]*
-- [x] **Online Archive Extractor & Compressor (`src/phase6.js`):** กด `📂 แตกไฟล์` บนไฟล์ `.zip`, `.tar`, `.tar.gz`, `.tgz` เพื่อแตกไฟล์ลงในโฟลเดอร์บน NAS ทันที (พร้อมระบบป้องกัน Zip-Slip) และกด `🗜️ บีบอัดเป็น .ZIP บน NAS` เพื่อสร้างไฟล์ `.zip` เก็บไว้ในโฟลเดอร์ปัจจุบัน
-- [x] **File Drop / Upload Request Links (`/d/:token`):** สร้างลิงก์สาธารณะสำหรับรับฝากไฟล์จากบุคคลภายนอกเข้าสู่โฟลเดอร์ที่กำหนดโดยไม่ต้องมีบัญชี NAS (ตั้งรหัสผ่านลิงก์และวันหมดอายุได้)
-- [x] **AES-256-GCM File Encryption Vault (`.vault`):** เข้ารหัสล็อกไฟล์ลับด้วยรหัสผ่านระดับฮาร์ดดิสก์ (`AES-256-GCM` + `scrypt` key derivation) และถอดรหัสกลับมาได้เฉพาะผู้ที่ทราบรหัสผ่าน
-- [x] **Color Tags & File Notes:** ติดป้ายกำกับ 5 สี (`🔴 แดง`, `🟢 เขียว`, `🔵 น้ำเงิน`, `🟡 เหลือง`, `🟣 ม่วง`) พร้อมเขียนบันทึกช่วยจำ (Note) ประจำไฟล์ และกรองดูไฟล์ตามสีได้ทันที
-- [x] **Deep Storage Analyzer:** หน้า `📈 วิเคราะห์พื้นที่เชิงลึก` แสดงกราฟสัดส่วนพื้นที่ตามประเภทไฟล์, จัดอันดับ 10 โฟลเดอร์ที่ใหญ่ที่สุด, และแสดง Top 20 ไฟล์ที่มีขนาดใหญ่ที่สุดใน NAS
+<div align="center">
+  <img src="docs/screenshots/02-files-dashboard.png" alt="Files Dashboard" width="900" style="border-radius: 12px; box-shadow: 0 12px 36px rgba(0,0,0,0.4);" />
+</div>
 
-### ✅ Phase 7: Ecosystem, Media & Collaboration Suite (ระบบสื่อบันเทิงและทำงานร่วมกันข้ามอุปกรณ์) — *[ดำเนินการแล้ว]*
-- [x] **Music Jukebox & Persistent Mini Player (`src/phase7.js`):** หน้า `🎵 เพลง & เสียง (Jukebox)` รวบรวมไฟล์เสียงทั้งหมดใน NAS พร้อมแถบเครื่องเล่นลอยด้านล่าง (`#mini-audio-player`) ที่เล่นเพลงต่อเนื่องได้แม้เปลี่ยนหน้าหรือเปิดโฟลเดอร์อื่น รองรับก่อนหน้า/ถัดไป, สุ่มเพลง (Shuffle), และเล่นซ้ำ
-- [x] **Cross-Device Clipboard & Snippet Hub:** หน้า `📋 คลิปบอร์ดข้ามเครื่อง` สำหรับส่งข้อความ, ลิงก์ยาวๆ, หรือโค้ดข้ามอุปกรณ์ในวง LAN (PC ↔ มือถือ/แท็บเล็ต) พร้อมปุ่มคัดลอกในคลิกเดียว หรือบันทึกเป็นไฟล์ `.txt` ลง NAS ทันที
-- [x] **Smart Batch Rename (เปลี่ยนชื่อไฟล์เป็นกลุ่ม):** เลือกหลายไฟล์พร้อมกันแล้วเปลี่ยนชื่ออัตโนมัติตามแพตเทิร์นรันเลข (`File-001.jpg`), เติมคำนำหน้า/คำต่อท้าย (Prefix/Suffix), หรือค้นหาและแทนที่คำ (Find & Replace) พร้อมดูตัวอย่างชื่อใหม่แบบสดๆ
-- [x] **File Checksum & Integrity Verifier (`MD5` / `SHA-1` / `SHA-256`):** ปุ่ม `#️⃣` บนการ์ดไฟล์เพื่อคำนวณค่าแฮชทั้ง 3 มาตรฐานแบบ Stream ในรอบเดียว และช่องวางค่าแฮชเพื่อตรวจสอบความถูกต้องของไฟล์อัตโนมัติ
-- [x] **Send to NAS User Inbox (`📨 ส่งให้ผู้ใช้ใน NAS`):** ส่งสำเนาไฟล์หรือโฟลเดอร์เข้าสู่โฟลเดอร์ `/Inbox` ของเพื่อนร่วมระบบโดยตรง พร้อมแนบข้อความบันทึกช่วยจำ (`ข้อความแนบ-*.md`)
+<br/>
 
-### ✅ Phase 8: Smart Workspace, Media Studio & Power Utilities (สมาร์ตเวิร์กสเปซ สตูดิโอแต่งภาพ และเครื่องมือระดับโปร) — *[ดำเนินการแล้ว]*
-- [x] **Built-in SVG QR Code Generator (`src/phase8.js`):** สร้าง QR Code มาตรฐาน ISO/IEC 18004 แบบ Pure-JS Offline (`GET /api/qr`) สำหรับสแกนเข้าใช้งาน NAS ผ่านวง LAN (`http://<LAN-IP>:8080`), สแกนดาวน์โหลดลิงก์แชร์สาธารณะ (`/s/:token`), และสแกนส่งไฟล์เข้าลิงก์รับฝากไฟล์ (`/d/:token`) จากกล้องมือถือได้ทันที
-- [x] **Full-Text Content Search / Grep (`ค้นหาคำข้างในเนื้อหาไฟล์`):** สแกนค้นหาคำหรือโค้ดที่อยู่ข้างในเนื้อหาไฟล์ข้อความ (`.txt`, `.md`, `.json`, `.csv`, `.js`, `.py`, `.html`, `.css`, `.sql`, `.log` ฯลฯ) ข้ามทุกโฟลเดอร์ พร้อมแสดงเลขบรรทัดและไฮไลต์คำที่พบ
-- [x] **Built-in Image Studio & Metadata Inspector (`🎨 แต่งรูป`):** ตรวจสอบค่าความละเอียดภาพ/DPI/Color Space และสั่งหมุนภาพ (`90°`/`180°`/`270°`), พลิกภาพ (`ซ้าย-ขวา`/`บน-ล่าง`), ย่อขนาดภาพ (`Resize`), หรือแปลงนามสกุลภาพ (`.jpg`, `.png`, `.tiff`, `.bmp`, `.gif`) บน NAS ได้โดยตรง พร้อมสำรองเวอร์ชันเดิมอัตโนมัติ
-- [x] **Kanban Task & Project Board (`📌 กระดานงาน Kanban`):** กระดานบริหารจัดการงาน 3 คอลัมน์ (**To Do**, **In Progress**, **Done**) ที่แนบ Path ไฟล์หรือโฟลเดอร์ใน NAS เข้ากับการ์ดงานได้และกดกระโดดไปยังโฟลเดอร์นั้นได้ในคลิกเดียว
-- [x] **Rich Markdown & Interactive CSV Table Viewer:** เปิดไฟล์ `.md`/`.markdown` แบบเรนเดอร์สวยงาม และเปิดไฟล์ `.csv`/`.tsv` เป็นตารางข้อมูลพร้อมช่องค้นหากรองแถวแบบ Real-time สลับระหว่างโหมดอ่าน (`👁️ โหมดอ่านสวยงาม`) และโหมดแก้ไขโค้ดดิบ (`✏️ โหมดแก้ไขโค้ด`) ได้ทันที
-- [x] **Command Palette (`Cmd + K` / `Ctrl + K`):** หน้าต่างสั่งงานด่วนด้วยคีย์บอร์ดสำหรับค้นหาคำสั่งลัด เปลี่ยนหน้า สลับโหมดมืด/สว่าง หรือเปิดไฟล์อย่างรวดเร็ว
+### 3. มอนิเตอร์ทรัพยากรฮาร์ดแวร์แบบ Real-Time (Live Telemetry & Storage Meter)
+กราฟ Area Chart ตรวจวัดความเคลื่อนไหวของ CPU Load และ RAM Usage แบบ Real-time อัปเดตทุก 3 วินาที พร้อมแสดงสถานะความจุพาร์ทิชันและไดรฟ์จัดเก็บข้อมูล
 
-### ✅ Phase 9: Pro UX, Finder Context Menu, Drag-to-Folder & Live Process Telemetry — *[ดำเนินการแล้ว]*
-- [x] **Custom Right-Click Context Menu & Drag-to-Folder (`#file-context-menu`):** คลิกขวาที่ไฟล์หรือโฟลเดอร์เพื่อเปิดเมนูคำสั่งด่วนสไตล์ macOS Finder / WattVision และสามารถลากการ์ดไฟล์ไปวางทับการ์ดโฟลเดอร์เพื่อย้ายไฟล์เข้าโฟลเดอร์นั้นได้ทันที
-- [x] **Mobile Drawer Sidebar & Bottom Quick Navigation (`#mobile-bottom-nav`):** ปุ่มเมนูแฮมเบอร์เกอร์ (`☰`) พร้อมเมนูสไลด์ด้านข้างและแถบนำทางด้านล่างสำหรับสมาร์ตโฟนและแท็บเล็ต
-- [x] **Recent Files & Quick Access Bar (`#recent-files-strip`):** แถบแสดงไฟล์ที่แก้ไขหรือใช้งานล่าสุดด้านบนของหน้าจัดการไฟล์ (`GET /api/files/recent`) เพื่อเปิดทำงานต่อได้ในคลิกเดียว
-- [x] **File Inspector Side Drawer (`#file-inspector-drawer`):** แถบแสดงข้อมูลเชิงลึกด้านขวาเมื่อกดดูรายละเอียดไฟล์
-- [x] **Live Top Processes & NAS Engine Telemetry (`GET /api/system/processes`):** ตารางแสดงโปรเซสที่ใช้ CPU และ RAM สูงสุดบนเครื่องเซิร์ฟเวอร์แบบสดๆ พร้อมข้อมูล V8 Heap / RSS Memory ของโปรเซส NAS
+<div align="center">
+  <img src="docs/screenshots/03-system-telemetry.png" alt="System Hardware Telemetry" width="900" style="border-radius: 12px; box-shadow: 0 12px 36px rgba(0,0,0,0.4);" />
+</div>
+
+<br/>
+
+### 4. การตั้งค่าไดรฟ์และตำแหน่งจัดเก็บข้อมูล (Storage Pool & Auto-Backup Settings)
+สามารถเปลี่ยนตำแหน่งจัดเก็บข้อมูลหลักไปยัง External Hard Drive หรือ SSD ได้อิสระ พร้อมระบบทดสอบสิทธิ์การเขียนและย้ายไฟล์เดิม (Data Migration) อัตโนมัติ
+
+<div align="center">
+  <img src="docs/screenshots/04-storage-settings.png" alt="Storage Pool Settings" width="900" style="border-radius: 12px; box-shadow: 0 12px 36px rgba(0,0,0,0.4);" />
+</div>
+
+<br/>
+
+### 5. คลังสื่อมัลติมีเดียและระบบตรวจจับไฟล์ซ้ำ (Media Center & Fast Duplicate Scanner)
+<table width="100%">
+  <tr>
+    <td width="50%" align="center">
+      <strong>📸 แกลเลอรีรูปภาพ & วิดีโอ (Photo & Video Gallery)</strong><br/><br/>
+      <img src="docs/screenshots/05-media-gallery.png" alt="Media Gallery" width="100%" style="border-radius: 8px;" />
+    </td>
+    <td width="50%" align="center">
+      <strong>🔍 ระบบค้นหาด่วน & ตรวจจับไฟล์ซ้ำ (SHA-256 Duplicate Finder)</strong><br/><br/>
+      <img src="docs/screenshots/06-duplicate-finder.png" alt="Duplicate Finder" width="100%" style="border-radius: 8px;" />
+    </td>
+  </tr>
+</table>
 
 ---
 
-## 🚀 วิธีเริ่มต้นใช้งาน (Getting Started)
+## 🌟 ฟีเจอร์เด่นสำคัญของระบบ (Key Features)
 
-### ความต้องการของระบบ
-- **Node.js** เวอร์ชัน `22.5.0` ขึ้นไป (ใช้โมดูลมาตรฐานของ Node.js และ `node:sqlite` ในตัว ไม่ต้องติดตั้งแพ็กเกจภายนอก)
+### 🚀 1. Resilient Chunked & Resumable Upload (อัปโหลดไฟล์ขนาดใหญ่แบบพัก/ทำต่อได้)
+- หั่นไฟล์ออกเป็น Chunk ขนาด 1MB - 8MB ตามขนาดไฟล์แบบ Adaptive
+- รองรับการกด **⏸️ พัก / ▶️ ทำต่อ** และทำงานต่อจาก Offset เดิมได้ทันทีแม้เน็ตหลุดหรือปิดแท็บ
+- ระบบ **Screen Wake Lock** ป้องกันหน้าจอมือถือ/คอมพิวเตอร์เข้าสู่โหมดสลีประหว่างโอนย้ายไฟล์ใหญ่
+- รองรับการกู้คืนและตัดส่วนที่เสีย (Rollback Truncation) ป้องกันปัญหา Offset Conflict ค้างถาวร
 
-### การรันเซิร์ฟเวอร์
+### 🗄️ 2. Dynamic Storage Pool & Custom Directory (เลือกโฟลเดอร์เก็บข้อมูลอิสระ)
+- รองรับการย้ายโฟลเดอร์จัดเก็บข้อมูลหลักไปยัง **External HDD / SSD** หรือไดรฟ์ภายนอก เช่น `/Volumes/ExternalDrive/NAS_Data`
+- ตั้งค่าได้สะดวกผ่านหน้า **Web UI Admin** หรือกำหนดผ่านตัวแปร `STORAGE_PATH` ใน Environment
+- **Safe Fallback System:** หากไดรฟ์ภายนอกถูกถอดออก ระบบจะสลับกลับมาใช้โฟลเดอร์เริ่มต้น (`storage/`) ให้อัตโนมัติ ป้องกันเซิร์ฟเวอร์เปิดไม่ติด
+- มีระบบทดสอบสิทธิ์การเขียน (Write Permission) และระบบโยกย้ายไฟล์เดิม (Data Migration) ในตัว
+
+### 💿 3. Native WebDAV Network Drive (`/webdav/`)
+- รองรับโปรโตคอลมาตรฐาน **RFC 4918 WebDAV**
+- เชื่อมต่อเข้ากับ **macOS Finder** (`Cmd + K`) หรือ **Windows Explorer** (`Map Network Drive`) ได้ทันทีโดยไม่ต้องเปิดเว็บ
+- รองรับแอปพลิเคชัน File Manager บน iOS / Android (เช่น FE File Explorer, Documents, CX File Explorer)
+
+### 🔐 4. Multi-user, Home Isolation & AES-256 Vault
+- แอดมินสามารถจัดการผู้ใช้ แยกโฟลเดอร์ส่วนตัว (`storage/files/Users/{username}`) และตั้ง **Storage Quota** รายบุคคล
+- **AES-256-GCM Vault:** เข้ารหัสล็อกไฟล์ความลับระดับฮาร์ดดิสก์ด้วยรหัสผ่านส่วนตัว
+- **Brute-Force Shield:** บันทึกประวัติความปลอดภัย (Audit Logs) และล็อก IP อัตโนมัติ 15 นาทีเมื่อกรอกรหัสผ่านผิดเกินกำหนด
+- **Public Share Links (`/s/:token`) & File Drop (`/d/:token`):** สร้างลิงก์ดาวน์โหลดหรือรับฝากไฟล์จากภายนอก พร้อมตั้งรหัสผ่านและวันหมดอายุ
+
+### 🎨 5. Smart Workspace & Productivity Tools
+- **Built-in Image Studio:** แต่งรูป, หมุนภาพ, พลิกมุม, ปรับขนาด (Resize) และแปลงนามสกุลไฟล์บน NAS โดยตรง
+- **Full-Text Content Search (Grep):** ค้นหาคำที่อยู่ข้างในเนื้อหาไฟล์เอกสาร/โค้ด พร้อมแสดงเลขบรรทัด
+- **Cross-Device Clipboard:** ส่งข้อความ โค้ด หรือลิงก์ข้ามเครื่อง (PC ↔ มือถือ) ในวง LAN
+- **Audio Jukebox:** แถบเครื่องเล่นเพลงมินิด้านล่าง เล่นเพลงต่อเนื่องได้แม้เปลี่ยนหน้า
+- **Offline QR Code Generator:** สร้าง QR Code สแกนเข้าเว็บหรือดาวน์โหลดไฟล์ผ่านมือถือโดยไม่ต้องพึ่งเน็ตภายนอก
+
+---
+
+## 🛠️ ความต้องการของระบบและการติดตั้ง (Installation & Setup)
+
+โปรเจกต์นี้ใช้ฟังก์ชันมาตรฐานของ Node.js (`node:http`, `node:stream`, `node:fs`, `node:crypto`, `node:sqlite`) **ไม่ต้องรัน `npm install` ใดๆ ทั้งสิ้น!**
+
+### 1. ข้อกำหนดของระบบ
+- **Node.js:** เวอร์ชัน `v22.0.0` หรือสูงกว่า (แนะนำ `v25.x` สำหรับ `node:sqlite` Built-in เต็มรูปแบบ)
+- **ระบบปฏิบัติการ:** macOS, Linux หรือ Windows
+
+### 2. การเริ่มต้นใช้งาน (Quick Start)
 ```bash
-npm start
+# โคลนโปรเจกต์
+git clone https://github.com/warchag/nasproject.git
+cd nasproject
+
+# รันเซิร์ฟเวอร์
+node src/server.js
+
+# หรือรันในโหมดพัฒนา (Auto-reload เมื่อโค้ดเปลี่ยนแปลง)
+node --watch src/server.js
 ```
 
-เมื่อรันแล้วสามารถเข้าใช้งานได้ผ่าน:
-- **Web Dashboard (เครื่องตัวเอง):** `http://localhost:8080`
-- **Web Dashboard (เครื่องอื่นในวง LAN / Wi-Fi):** `http://<LAN-IP>:8080`
-- **WebDAV Network Drive (Finder / Windows Explorer):** `http://<LAN-IP>:8080/webdav/`
-
-### บัญชีผู้ใช้เริ่มต้น (Default Login)
-- **Username:** `admin`
-- **Password:** `admin123`
+### 3. การเข้าใช้งาน
+เมื่อเซิร์ฟเวอร์เริ่มทำงาน จะแสดง URL สำหรับเชื่อมต่อใน Console:
+- **เข้าจากเครื่องเซิร์ฟเวอร์:** `http://localhost:8080`
+- **เข้าจากอุปกรณ์อื่นในวง LAN (Wi-Fi):** `http://<IP-เครื่องเซิร์ฟเวอร์>:8080`
+- **เชื่อมต่อ Network Drive (WebDAV):** `http://<IP-เครื่องเซิร์ฟเวอร์>:8080/webdav/`
 
 ---
 
-## 📁 โครงสร้างโปรเจกต์ (Project Structure)
+## ⚙️ โครงสร้างของโปรเจกต์ (Project Structure)
 
 ```text
 nasproject/
-├── README.md              # เอกสารอธิบายสถาปัตยกรรมและ Roadmap ทั้ง 4 เฟส
-├── package.json           # สคริปต์สำหรับรันระบบ (พร้อมโหมด Auto-reload)
 ├── src/
-│   ├── server.js          # HTTP Server, API Router หลัก & Public Share Portal
-│   ├── db.js              # ระบบฐานข้อมูล SQLite (Users, Trash, Uploads, Shares, Settings, Kanban)
-│   ├── auth.js            # ระบบยืนยันตัวตน (scrypt Hashing & Signed Session Token)
-│   ├── system.js          # โมดูลวัดค่า CPU, RAM, Disk Space และ Network IP
-│   ├── storage.js         # โมดูลจัดการไฟล์, Home Isolation, Quota, Extension Policy & Trash
-│   ├── thumbnails.js      # โมดูลสร้างและแคชภาพย่อ (Thumbnail Generator)
-│   ├── zip.js             # โมดูลสร้างและ Stream ไฟล์ .ZIP แบบ On-the-fly
-│   ├── webdav.js          # โมดูล WebDAV Server (RFC 4918) สำหรับ Mount เป็น Network Drive
-│   ├── indexer.js         # โมดูล SQLite File Indexer, Global Search & Duplicate Detector
-│   ├── scheduler.js       # โมดูล Auto-Backup Snapshots & Auto-Trash Cleanup
-│   ├── phase5.js          # โมดูล Audit Logs, Brute-force Lockout, Favorites, Gallery, Cloud Fetch & File Versioning
-│   ├── phase6.js          # โมดูล Archive Extractor/Compressor, File Drop (/d/:token), AES-256 Vault, Color Tags & Storage Analyzer
-│   ├── phase7.js          # โมดูล Music Jukebox, Cross-Device Clipboard, Batch Rename, File Checksum & User Inbox
-│   ├── phase8.js          # โมดูล SVG QR Generator, Full-Text Grep Search, Image Studio & Kanban Board
-│   └── phase9.js          # โมดูล Recent Files, Live Top Processes Telemetry & Session Lock Verification
+│   ├── server.js          # HTTP API Server, Router, Streaming & Middleware
+│   ├── storage.js         # Dynamic Storage Engine, Chunked Upload & Path Safety
+│   ├── auth.js            # Password Hashing (scrypt), Session Token & Verification
+│   ├── db.js              # SQLite Engine (node:sqlite) & Database CRUD
+│   ├── system.js          # Hardware Telemetry (macOS vm_stat, CPU, RAM & Disk statfs)
+│   ├── webdav.js          # RFC 4918 WebDAV Network Drive Engine
+│   ├── indexer.js         # Global File Indexing & SHA-256 Duplicate Detector
+│   ├── scheduler.js       # Auto-Backup Snapshot & Trash Retention Scheduler
+│   ├── thumbnails.js      # On-the-fly Image/Video Thumbnail Generator
+│   ├── zip.js             # High-Performance Streaming ZIP Archive Compressor
+│   ├── phase5.js          # Audit Logs, IP Lockout, Versioning & Gallery
+│   ├── phase6.js          # Archive Extractor, File Drop Portal, AES-256 Vault & Tags
+│   ├── phase7.js          # Music Jukebox, LAN Clipboard, Batch Rename & Checksums
+│   ├── phase8.js          # Pure-JS QR Generator, Content Grep, Image Studio & Kanban
+│   └── phase9.js          # Process Telemetry, Finder Context Menu & Inspector
 ├── public/
-│   ├── index.html         # หน้า Web UI หลักของ NAS Dashboard และหน้า Public Share Portal
-│   ├── styles.css         # สไตล์ชีตแบบ Modern Dark NAS UI
-│   └── app.js             # โค้ดฝั่ง Frontend ทั้งหมด
-├── data/                  # เก็บไฟล์ฐานข้อมูล SQLite (สร้างอัตโนมัติ)
-└── storage/               # พื้นที่เก็บข้อมูลจริงของ NAS (สร้างอัตโนมัติ)
-    ├── files/             # โฟลเดอร์เก็บไฟล์ทั้งหมด (และโฟลเดอร์แยกผู้ใช้ Users/{username})
-    ├── trash/             # โฟลเดอร์พักไฟล์ที่ถูกลบ (Recycle Bin)
-    ├── backups/           # โฟลเดอร์เก็บไฟล์สำรองข้อมูล .ZIP (Backup Snapshots)
-    └── .cache/            # แคชภาพย่อ (thumbnails) และไฟล์อัปโหลดชั่วคราว (uploads)
+│   ├── index.html         # WattVision Modern Dashboard Layout & Glassmorphism UI
+│   ├── styles.css         # Responsive Dark/Light Theme & CSS Architecture
+│   └── app.js             # Client SPA Controller, WakeLock & Chunked Upload Logic
+├── data/                  # SQLite Database (nas.db) & Audit Records (Git-ignored)
+├── storage/               # โฟลเดอร์เก็บไฟล์เริ่มต้น (Default Data Directory)
+│   ├── files/             # พื้นที่เก็บไฟล์จริงและ Home Directory ของผู้ใช้
+│   ├── trash/             # ถังขยะพร้อมประวัติกู้คืน
+│   ├── backups/           # ไฟล์สำรองข้อมูล .ZIP
+│   └── .cache/            # Thumbnails และ Temporary Upload Parts
+└── docs/
+    └── screenshots/       # ภาพหน้าจอประกอบคู่มือระบบ
 ```
+
+---
+
+## 🔒 ความปลอดภัย (Security Features)
+- **Path Traversal Protection:** ตรวจสอบและบังคับ Root Sandbox ทุกการเรียกอ่านหรือเขียนไฟล์ (`resolveSafePath`) ป้องกันการเข้าถึงไฟล์ระบบนอกขอบเขต
+- **Brute-Force IP Lockout:** ตรวจจับและล็อก IP ที่พยายามสุ่มรหัสผ่านเกิน 5 ครั้งต่อเนื่อง
+- **Secure Password Hashing:** แฮชรหัสผ่านด้วย `crypto.scryptSync` พร้อม Unique Salt แยกทุกบัญชี
+- **HTTP/1.1 Strict Headers:** บังคับ Content-Length, No-Sniff, XSS Protection และ Frame Guard ในทุกคำขอ
+
+---
+
+## 📄 ใบอนุญาต (License)
+โปรเจกต์นี้เปิดให้ใช้งานและพัฒนาต่อเพื่อการศึกษาและใช้งานส่วนบุคคลภายในบ้าน (MIT License)
