@@ -1,0 +1,2017 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Personal NAS Server — WattVision Telemetry & Storage Control</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@600;700&display=swap"
+    rel="stylesheet"
+  />
+  <link
+    rel="icon"
+    type="image/svg+xml"
+    href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23121212'/%3E%3Crect x='10' y='12' width='44' height='12' rx='4' fill='%231E1E1E' stroke='%2300E5FF' stroke-width='2'/%3E%3Ccircle cx='18' cy='18' r='2.5' fill='%2300E5FF'/%3E%3Ccircle cx='26' cy='18' r='2.5' fill='%2332D74B'/%3E%3Crect x='10' y='28' width='44' height='12' rx='4' fill='%231E1E1E' stroke='%2300E5FF' stroke-width='2'/%3E%3Ccircle cx='18' cy='34' r='2.5' fill='%2300E5FF'/%3E%3Ccircle cx='26' cy='34' r='2.5' fill='%2332D74B'/%3E%3Cpath d='M12 50 L24 50 L29 44 L35 55 L40 48 L52 48' fill='none' stroke='%2300E5FF' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"
+  />
+  <link rel="stylesheet" href="/styles.css?v=25" />
+</head>
+<body>
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- ================= PUBLIC SHARE PORTAL SCREEN (/s/:token) ================= -->
+  <div id="public-share-screen" class="login-screen hidden">
+    <div class="login-card share-portal-card">
+      <div class="login-logo">
+        <div class="logo-icon" id="pub-share-icon">📦</div>
+        <div>
+          <h1 id="pub-share-name">กำลังโหลดข้อมูลไฟล์ที่แชร์...</h1>
+          <p id="pub-share-meta">Personal NAS Public Share</p>
+        </div>
+      </div>
+
+      <div id="pub-share-error" class="form-error hidden"></div>
+
+      <!-- Password Gate -->
+      <form id="pub-share-password-form" class="hidden">
+        <div class="form-group">
+          <label for="pub-share-password-input">🔒 ลิงก์นี้มีการตั้งรหัสผ่าน กรุณากรอกรหัสผ่านเพื่อเข้าถึงไฟล์:</label>
+          <input
+            type="password"
+            id="pub-share-password-input"
+            placeholder="กรอกรหัสผ่าน..."
+            required
+          />
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">ปลดล็อกไฟล์ที่แชร์</button>
+      </form>
+
+      <!-- Share Content & Download -->
+      <div id="pub-share-content" class="hidden">
+        <div id="pub-share-preview" class="pub-share-preview hidden"></div>
+        <div class="sys-stats-list" style="margin-bottom: 18px;">
+          <div class="sys-stat-row">
+            <span>ผู้แชร์ไฟล์ (Shared by):</span>
+            <strong id="pub-share-owner">-</strong>
+          </div>
+          <div class="sys-stat-row">
+            <span>ขนาดไฟล์ (Size):</span>
+            <strong id="pub-share-size">-</strong>
+          </div>
+          <div class="sys-stat-row">
+            <span>วันหมดอายุ (Expires):</span>
+            <strong id="pub-share-expires">-</strong>
+          </div>
+          <div class="sys-stat-row">
+            <span>จำนวนดาวน์โหลด (Downloads):</span>
+            <strong id="pub-share-downloads">-</strong>
+          </div>
+        </div>
+        <a id="pub-share-download-btn" href="#" class="btn btn-primary btn-block">
+          ⬇️ ดาวน์โหลดไฟล์นี้
+        </a>
+      </div>
+
+      <div class="login-hint">
+        <a href="/" style="color: #93c5fd; text-decoration: none;">🏠 ไปยังหน้าหลักของ Personal NAS Server</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= PUBLIC FILE DROP PORTAL SCREEN (/d/:token - PHASE 6) ================= -->
+  <div id="public-drop-screen" class="login-screen hidden">
+    <div class="login-card share-portal-card">
+      <div class="login-logo">
+        <div class="logo-icon">📥</div>
+        <div>
+          <h1 id="pub-drop-title">กำลังโหลดหน้าส่งไฟล์...</h1>
+          <p id="pub-drop-meta">Personal NAS File Drop Portal</p>
+        </div>
+      </div>
+
+      <div id="pub-drop-error" class="form-error hidden"></div>
+
+      <!-- Password Gate -->
+      <form id="pub-drop-password-form" class="hidden">
+        <div class="form-group">
+          <label for="pub-drop-password-input">🔒 ลิงก์รับฝากไฟล์นี้มีการตั้งรหัสผ่าน กรุณากรอกรหัสผ่าน:</label>
+          <input type="password" id="pub-drop-password-input" placeholder="กรอกรหัสผ่าน..." required />
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">ปลดล็อกหน้าส่งไฟล์</button>
+      </form>
+
+      <!-- Drop Upload Form -->
+      <div id="pub-drop-content" class="hidden">
+        <div class="sys-stats-list" style="margin-bottom: 16px;">
+          <div class="sys-stat-row">
+            <span>ผู้เปิดรับไฟล์ (Owner):</span>
+            <strong id="pub-drop-owner">-</strong>
+          </div>
+          <div class="sys-stat-row">
+            <span>โฟลเดอร์ปลายทาง:</span>
+            <strong id="pub-drop-folder">-</strong>
+          </div>
+          <div class="sys-stat-row">
+            <span>วันหมดอายุลิงก์:</span>
+            <strong id="pub-drop-expires">-</strong>
+          </div>
+        </div>
+
+        <form id="pub-drop-upload-form">
+          <div class="form-group">
+            <label for="pub-drop-sender">👤 ชื่อผู้ส่ง (เพื่อให้เจ้าของ NAS ทราบว่าใครส่งมา):</label>
+            <input type="text" id="pub-drop-sender" placeholder="เช่น สมชาย / ลูกค้าโปรเจกต์ A" required />
+          </div>
+          <div class="form-group">
+            <label for="pub-drop-files">📎 เลือกไฟล์ที่ต้องการส่งเข้า NAS (เลือกได้หลายไฟล์):</label>
+            <input type="file" id="pub-drop-files" multiple required />
+          </div>
+          <div id="pub-drop-status" style="font-size:13px;color:#38bdf8;margin-bottom:12px;" class="hidden"></div>
+          <button type="submit" class="btn btn-primary btn-block" id="pub-drop-submit-btn">
+            ⬆️ ส่งไฟล์เข้าสู่ NAS ทันที
+          </button>
+        </form>
+      </div>
+
+      <div class="login-hint">
+        <a href="/" style="color: #93c5fd; text-decoration: none;">🏠 ไปยังหน้าหลักของ Personal NAS Server</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= LOGIN SCREEN (WATTVISION TELEMETRY SPLIT SHOWCASE) ================= -->
+  <div id="login-screen" class="login-screen hidden">
+    <div class="login-grid-backdrop" aria-hidden="true"></div>
+    <div class="login-glow-orb orb-cyan" aria-hidden="true"></div>
+    <div class="login-glow-orb orb-green" aria-hidden="true"></div>
+
+    <div class="login-shell">
+      <!-- Left Showcase Panel: Custom Brand Logo + Live Telemetry Visual + Feature Highlights -->
+      <div class="login-showcase-panel">
+        <div class="login-showcase-top">
+          <div class="login-brand-header">
+            <div class="nas-custom-logo" aria-label="WattVision NAS Logo">
+              <svg viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <linearGradient id="nasLogoCyan" x1="0" y1="0" x2="72" y2="72" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stop-color="#00E5FF" />
+                    <stop offset="100%" stop-color="#0088A9" />
+                  </linearGradient>
+                  <linearGradient id="nasLogoGreen" x1="0" y1="0" x2="72" y2="0" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stop-color="#00E5FF" />
+                    <stop offset="100%" stop-color="#32D74B" />
+                  </linearGradient>
+                </defs>
+                <!-- Outer Hex/Rounded Shield -->
+                <rect x="4" y="4" width="64" height="64" rx="18" fill="rgba(0, 229, 255, 0.07)" stroke="url(#nasLogoCyan)" stroke-width="2" />
+                <!-- Server Bay 1 -->
+                <rect x="14" y="14" width="44" height="12" rx="4" fill="#141820" stroke="#00E5FF" stroke-width="1.6" />
+                <circle cx="21" cy="20" r="2.4" fill="#00E5FF" />
+                <circle cx="28" cy="20" r="2.4" fill="#32D74B" />
+                <line x1="36" y1="20" x2="51" y2="20" stroke="#00E5FF" stroke-width="2" stroke-linecap="round" stroke-opacity="0.65" />
+                <!-- Server Bay 2 -->
+                <rect x="14" y="30" width="44" height="12" rx="4" fill="#141820" stroke="#00E5FF" stroke-width="1.6" stroke-opacity="0.8" />
+                <circle cx="21" cy="36" r="2.4" fill="#00E5FF" />
+                <circle cx="28" cy="36" r="2.4" fill="#32D74B" />
+                <line x1="36" y1="36" x2="47" y2="36" stroke="#32D74B" stroke-width="2" stroke-linecap="round" stroke-opacity="0.75" />
+                <!-- Live Telemetry Waveform Base -->
+                <path
+                  d="M14 53 H24 L28.5 46.5 L34 57.5 L39.5 49 L44 53 H58"
+                  stroke="url(#nasLogoGreen)"
+                  stroke-width="2.6"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+            </div>
+            <div class="login-brand-titles">
+              <div class="login-brand-badges">
+                <span class="watt-version-pill">WATTVISION NAS OS v8.0</span>
+                <span class="live-status-pill">● SYSTEM ONLINE</span>
+              </div>
+              <h1>Personal NAS</h1>
+              <p>High-Speed Private Cloud & Real-Time Hardware Telemetry</p>
+            </div>
+          </div>
+
+          <!-- Decorative Live Telemetry Mini Graph Card -->
+          <div class="login-telemetry-preview">
+            <div class="login-telemetry-head">
+              <span>⚡ STORAGE & TELEMETRY CORE</span>
+              <span class="mono-tag">AES-256-GCM • WEBDAV • RAID/STREAM</span>
+            </div>
+            <svg viewBox="0 0 420 76" class="login-wave-svg" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="loginWaveFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#00E5FF" stop-opacity="0.36" />
+                  <stop offset="100%" stop-color="#00E5FF" stop-opacity="0.0" />
+                </linearGradient>
+              </defs>
+              <path
+                d="M0 54 C40 50, 65 24, 105 28 C145 32, 170 56, 210 38 C250 20, 285 14, 325 30 C365 46, 390 18, 420 22 L420 76 L0 76 Z"
+                fill="url(#loginWaveFill)"
+              />
+              <path
+                d="M0 54 C40 50, 65 24, 105 28 C145 32, 170 56, 210 38 C250 20, 285 14, 325 30 C365 46, 390 18, 420 22"
+                fill="none"
+                stroke="#00E5FF"
+                stroke-width="2.4"
+              />
+              <path
+                d="M0 62 C50 58, 90 44, 135 48 C180 52, 220 34, 265 42 C310 50, 355 32, 420 36"
+                fill="none"
+                stroke="#32D74B"
+                stroke-width="1.8"
+                stroke-dasharray="4 3"
+              />
+            </svg>
+          </div>
+
+          <!-- Feature Highlights -->
+          <div class="login-feature-list">
+            <div class="login-feature-item">
+              <div class="login-feature-icon">🚀</div>
+              <div>
+                <strong>Chunked Upload & WebDAV Network Drive</strong>
+                <p>อัปโหลดไฟล์ขนาดใหญ่แบบพัก/ทำต่อได้ และเชื่อมต่อเป็นไดรฟ์บน macOS / Windows</p>
+              </div>
+            </div>
+            <div class="login-feature-item">
+              <div class="login-feature-icon">🔐</div>
+              <div>
+                <strong>AES-256-GCM File Vault & Brute-Force Shield</strong>
+                <p>เข้ารหัสไฟล์ลับระดับฮาร์ดดิสก์ พร้อมระบบ Audit Logs และล็อก IP อัตโนมัติ</p>
+              </div>
+            </div>
+            <div class="login-feature-item">
+              <div class="login-feature-icon">🎨</div>
+              <div>
+                <strong>Smart Workspace, Full-Text Search & Image Studio</strong>
+                <p>สแกน QR เข้าใช้งาน, ค้นหาคำในเนื้อหาไฟล์, แต่งรูปภาพ, ดูตาราง CSV และแกลเลอรีสื่อ</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="login-showcase-footer">
+          <span>🔒 ระบบเครือข่ายส่วนตัวภายในบ้าน (Private Local Cloud)</span>
+        </div>
+      </div>
+
+      <!-- Right Authentication Form Panel -->
+      <div class="login-card login-form-panel">
+        <div class="login-form-topbar">
+          <div class="login-security-chip">
+            <span class="security-dot"></span>
+            <span>SECURE ACCESS</span>
+          </div>
+          <button
+            type="button"
+            class="btn-icon js-theme-toggle"
+            id="login-theme-toggle-btn"
+            title="สลับโหมดมืด / โหมดสว่าง (Dark / Light Mode)"
+          >
+            ☀️
+          </button>
+        </div>
+
+        <div class="login-form-header">
+          <h2>เข้าสู่ระบบ Personal NAS</h2>
+          <p>กรอกชื่อผู้ใช้และรหัสผ่านเพื่อเข้าถึงพื้นที่จัดเก็บข้อมูลของคุณ</p>
+        </div>
+
+        <form id="login-form" class="login-form">
+          <div class="form-group">
+            <label for="login-username">ชื่อผู้ใช้ (Username)</label>
+            <div class="login-input-wrap">
+              <span class="login-input-icon">👤</span>
+              <input
+                type="text"
+                id="login-username"
+                name="username"
+                placeholder="กรอกชื่อผู้ใช้..."
+                required
+                autocomplete="username"
+              />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="login-password">รหัสผ่าน (Password)</label>
+            <div class="login-input-wrap">
+              <span class="login-input-icon">🔑</span>
+              <input
+                type="password"
+                id="login-password"
+                name="password"
+                placeholder="กรอกรหัสผ่าน..."
+                required
+                autocomplete="current-password"
+              />
+              <button
+                type="button"
+                class="login-pwd-toggle"
+                id="toggle-login-pwd-btn"
+                title="แสดง / ซ่อนรหัสผ่าน"
+                aria-label="แสดงหรือซ่อนรหัสผ่าน"
+              >
+                👁️
+              </button>
+            </div>
+          </div>
+
+          <div id="login-error" class="form-error hidden"></div>
+
+          <button type="submit" class="btn btn-primary btn-block login-submit-cta" id="login-submit-btn">
+            <span>⚡ เข้าสู่ระบบ Personal NAS</span>
+            <span class="login-cta-arrow">→</span>
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= MAIN APP SCREEN ================= -->
+  <div id="app-screen" class="app-layout hidden">
+    <!-- Mobile Sidebar Backdrop (Phase 9) -->
+    <div id="sidebar-backdrop" class="sidebar-backdrop hidden"></div>
+
+    <!-- Sidebar -->
+    <aside class="sidebar" id="main-sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-badge">
+          <svg viewBox="0 0 40 40" width="26" height="26" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="4" y="6" width="32" height="9" rx="3" fill="#121212" stroke="#00E5FF" stroke-width="1.8" />
+            <circle cx="9.5" cy="10.5" r="1.8" fill="#00E5FF" />
+            <circle cx="15" cy="10.5" r="1.8" fill="#32D74B" />
+            <rect x="4" y="18" width="32" height="9" rx="3" fill="#121212" stroke="#00E5FF" stroke-width="1.8" />
+            <circle cx="9.5" cy="22.5" r="1.8" fill="#00E5FF" />
+            <circle cx="15" cy="22.5" r="1.8" fill="#32D74B" />
+            <path d="M5 33 H13 L16.5 29 L20.5 36 L24 31.5 L27 33 H35" stroke="#00E5FF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h2>Personal NAS</h2>
+          <span id="sidebar-hostname" class="hostname-pill">Connecting...</span>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <button class="nav-item active" data-tab="files" id="nav-files">
+          <span class="nav-icon">📁</span>
+          <span class="nav-label">ไฟล์ทั้งหมด</span>
+        </button>
+        <button class="nav-item" data-tab="favorites" id="nav-favorites">
+          <span class="nav-icon">⭐</span>
+          <span class="nav-label">รายการโปรด</span>
+        </button>
+        <button class="nav-item" data-tab="gallery" id="nav-gallery">
+          <span class="nav-icon">📸</span>
+          <span class="nav-label">แกลเลอรีรูป & วิดีโอ</span>
+        </button>
+        <button class="nav-item" data-tab="clipboard" id="nav-clipboard">
+          <span class="nav-icon">📋</span>
+          <span class="nav-label">คลิปบอร์ดข้ามเครื่อง</span>
+        </button>
+        <button class="nav-item" data-tab="indexer" id="nav-indexer">
+          <span class="nav-icon">🔍</span>
+          <span class="nav-label">ค้นหาด่วน & ไฟล์ซ้ำ</span>
+        </button>
+        <button class="nav-item" data-tab="analyzer" id="nav-analyzer">
+          <span class="nav-icon">📈</span>
+          <span class="nav-label">วิเคราะห์พื้นที่เชิงลึก</span>
+        </button>
+        <button class="nav-item" data-tab="shares" id="nav-shares">
+          <span class="nav-icon">🔗</span>
+          <span class="nav-label">ลิงก์แชร์ & รับฝากไฟล์</span>
+          <span id="shares-count-badge" class="badge badge-blue hidden">0</span>
+        </button>
+        <button class="nav-item" data-tab="trash" id="nav-trash">
+          <span class="nav-icon">🗑️</span>
+          <span class="nav-label">ถังขยะ</span>
+          <span id="trash-count-badge" class="badge hidden">0</span>
+        </button>
+        <button class="nav-item hidden" data-tab="users" id="nav-users">
+          <span class="nav-icon">👥</span>
+          <span class="nav-label">จัดการผู้ใช้ & โควตา</span>
+        </button>
+        <button class="nav-item" data-tab="advanced" id="nav-advanced">
+          <span class="nav-icon">⚙️</span>
+          <span class="nav-label">ตั้งค่าระบบ & Backup</span>
+        </button>
+        <button class="nav-item hidden" data-tab="audit" id="nav-audit">
+          <span class="nav-icon">📜</span>
+          <span class="nav-label">ประวัติระบบ & ความปลอดภัย</span>
+        </button>
+        <button class="nav-item" data-tab="system" id="nav-system">
+          <span class="nav-icon">📊</span>
+          <span class="nav-label">สถานะเซิร์ฟเวอร์</span>
+        </button>
+      </nav>
+
+      <!-- Live System & Quota Health Widget in Sidebar -->
+      <div class="sidebar-status-box">
+        <div class="status-header">
+          <span id="side-storage-label">💾 พื้นที่จัดเก็บข้อมูล (Disk)</span>
+          <strong id="side-disk-percent">0%</strong>
+        </div>
+        <div class="progress-bar">
+          <div id="side-disk-bar" class="progress-fill" style="width: 0%"></div>
+        </div>
+        <div class="status-subtext" id="side-disk-text">กำลังโหลด...</div>
+
+        <div class="mini-metrics">
+          <div class="mini-metric">
+            <span class="mini-label">⚡ CPU</span>
+            <strong id="side-cpu-percent">0%</strong>
+          </div>
+          <div class="mini-metric">
+            <span class="mini-label">🧠 RAM</span>
+            <strong id="side-ram-percent">0%</strong>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content" id="drop-zone">
+      <!-- Drag & Drop Overlay -->
+      <div id="drag-overlay" class="drag-overlay hidden">
+        <div class="drag-box">
+          <div class="drag-icon">☁️⬆️</div>
+          <h3>ปล่อยไฟล์ที่นี่เพื่ออัปโหลดแบบ Chunked & Resumable</h3>
+          <p id="drag-target-folder">โฟลเดอร์ปัจจุบัน: /</p>
+        </div>
+      </div>
+
+      <!-- Topbar -->
+      <header class="topbar">
+        <div class="topbar-main-row">
+          <div class="topbar-brand-area">
+            <button type="button" class="btn-icon mobile-menu-btn" id="mobile-menu-btn" title="เปิดเมนูนำทาง">
+              ☰
+            </button>
+            <div class="topbar-left" id="topbar-left-files">
+              <nav id="breadcrumbs" class="breadcrumbs"></nav>
+            </div>
+            <div class="topbar-left hidden" id="topbar-left-title">
+              <h2 id="view-header-title" class="view-title">สถานะเซิร์ฟเวอร์</h2>
+            </div>
+          </div>
+
+          <div class="topbar-global-right">
+            <div class="search-wrapper" id="file-search-wrapper">
+              <span class="search-icon">🔍</span>
+              <input
+                type="text"
+                id="search-input"
+                placeholder="ค้นหาในโฟลเดอร์นี้..."
+              />
+            </div>
+
+            <button class="theme-toggle-btn js-theme-toggle" id="theme-toggle-btn" title="สลับโหมดมืด / โหมดสว่าง (Dark / Light Mode)">
+              <span id="theme-toggle-icon">☀️</span>
+              <span id="theme-toggle-label">โหมดสว่าง</span>
+            </button>
+
+            <button class="btn btn-secondary" id="refresh-btn" title="รีเฟรชข้อมูลล่าสุด">
+              <span>🔄</span>
+              <span>รีเฟรชข้อมูล</span>
+            </button>
+
+            <!-- Top-Right User Profile & Account Dropdown Menu -->
+            <div class="topbar-user-menu-wrap" id="topbar-user-menu-wrap">
+              <button type="button" class="topbar-user-trigger" id="user-menu-trigger" title="บัญชีผู้ใช้และการตั้งค่า">
+                <span class="topbar-user-avatar" id="topbar-user-avatar">A</span>
+                <span class="topbar-user-info">
+                  <strong id="current-username">admin</strong>
+                  <small id="current-user-role">Administrator</small>
+                </span>
+                <svg class="topbar-user-chevron" viewBox="0 0 20 20" width="15" height="15" fill="none">
+                  <path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </button>
+
+              <div class="topbar-user-dropdown hidden" id="user-dropdown-menu">
+                <div class="user-dropdown-header">
+                  <div class="topbar-user-avatar lg" id="dropdown-user-avatar">A</div>
+                  <div class="user-dropdown-meta">
+                    <strong id="dropdown-username">admin</strong>
+                    <span id="dropdown-user-role">Administrator (Root)</span>
+                  </div>
+                </div>
+
+                <div class="user-dropdown-divider"></div>
+
+                <button type="button" class="user-dropdown-item" id="change-password-btn">
+                  <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                  </svg>
+                  <span>เปลี่ยนรหัสผ่านบัญชี</span>
+                </button>
+
+                <div class="user-dropdown-divider"></div>
+
+                <button type="button" class="user-dropdown-item logout-item" id="logout-btn">
+                  <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                    <polyline points="16 17 21 12 16 7"></polyline>
+                    <line x1="21" y1="12" x2="9" y2="12"></line>
+                  </svg>
+                  <span>ออกจากระบบ (Sign Out)</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- File Explorer Action Sub-Toolbar -->
+        <div class="toolbar-actions file-action-subbar" id="file-toolbar-actions">
+          <div class="file-subbar-left">
+            <select id="tag-filter-select" class="sort-select" title="กรองตามป้ายกำกับสี">
+              <option value="all">🏷️ ทุกป้ายสี</option>
+              <option value="red">🔴 ด่วน/สำคัญ</option>
+              <option value="green">🟢 เสร็จสิ้น</option>
+              <option value="blue">🔵 โปรเจกต์</option>
+              <option value="yellow">🟡 รอตรวจสอบ</option>
+              <option value="purple">🟣 ส่วนตัว</option>
+            </select>
+
+            <select id="sort-select" class="sort-select" title="จัดเรียงไฟล์">
+              <option value="name-asc">เรียง: ชื่อ (ก → ฮ)</option>
+              <option value="name-desc">เรียง: ชื่อ (ฮ → ก)</option>
+              <option value="date-desc">เรียง: แก้ไขล่าสุด</option>
+              <option value="date-asc">เรียง: แก้ไขเก่าสุด</option>
+              <option value="size-desc">เรียง: ขนาดใหญ่ → เล็ก</option>
+              <option value="size-asc">เรียง: ขนาดเล็ก → ใหญ่</option>
+            </select>
+
+            <button class="btn btn-secondary" id="select-all-btn" title="เลือกทั้งหมดในโฟลเดอร์นี้">
+              ☑️ เลือกทั้งหมด
+            </button>
+          </div>
+
+          <div class="file-subbar-right">
+            <input type="file" id="file-upload-input" multiple class="hidden" />
+            <button class="btn btn-primary" id="upload-btn">
+              ⬆️ อัปโหลดไฟล์
+            </button>
+            <button class="btn btn-secondary" id="fetch-url-btn" title="ดึงไฟล์จากลิงก์ภายนอกลง NAS โดยตรง">
+              🌐 ดึงจาก URL
+            </button>
+            <button class="btn btn-secondary" id="create-file-btn" title="สร้างไฟล์ข้อความ/โค้ดใหม่">
+              📝 สร้างไฟล์ใหม่
+            </button>
+            <button class="btn btn-secondary" id="new-folder-btn">
+              ➕ โฟลเดอร์ใหม่
+            </button>
+            <div class="view-toggle">
+              <button class="btn-toggle active" id="view-grid-btn" title="มุมมองไอคอน">⊞</button>
+              <button class="btn-toggle" id="view-list-btn" title="มุมมองตาราง">☰</button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- Multi-Select Action Bar -->
+      <div id="selection-bar" class="selection-bar hidden">
+        <div class="selection-info">
+          <span class="selection-count" id="selection-count-text">เลือก 0 รายการ</span>
+        </div>
+        <div class="selection-actions">
+          <button class="btn btn-primary" id="batch-zip-btn">
+            📦 ดาวน์โหลดเป็น .ZIP
+          </button>
+          <button class="btn btn-secondary" id="batch-compress-nas-btn" title="บีบอัดรายการที่เลือกเก็บเป็นไฟล์ .ZIP ในโฟลเดอร์นี้">
+            🗜️ บีบอัดเป็น .ZIP บน NAS
+          </button>
+          <button class="btn btn-secondary" id="batch-rename-btn" title="เปลี่ยนชื่อไฟล์ทีละหลายไฟล์พร้อมกัน">
+            ✏️ เปลี่ยนชื่อชุด
+          </button>
+          <button class="btn btn-secondary" id="batch-send-inbox-btn" title="ส่งไฟล์เข้า Inbox ของผู้ใช้คนอื่นใน NAS">
+            📨 ส่งให้สมาชิก
+          </button>
+          <button class="btn btn-secondary" id="batch-move-btn">
+            📂 ย้ายไปที่...
+          </button>
+          <button class="btn btn-secondary" id="batch-copy-btn">
+            📋 คัดลอกไปที่...
+          </button>
+          <button class="btn btn-danger" id="batch-trash-btn">
+            🗑️ ลบลงถังขยะ
+          </button>
+          <button class="btn btn-secondary" id="clear-selection-btn">
+            ✕ ยกเลิกเลือก
+          </button>
+        </div>
+      </div>
+
+      <!-- Chunked & Resumable Upload Task Manager Panel -->
+      <div id="upload-banner" class="upload-banner hidden">
+        <div class="upload-banner-header">
+          <div class="upload-banner-title">
+            <strong id="upload-status-text">⬆️ สถานะการอัปโหลดไฟล์...</strong>
+            <span id="upload-resumed-badge" class="resumed-badge hidden">♻️ อัปโหลดต่อจากเดิม</span>
+            <span id="upload-speed-eta" class="upload-speed-eta">⚡ คำนวณความเร็ว...</span>
+          </div>
+          <div class="upload-banner-controls">
+            <span id="upload-bytes-text" class="upload-bytes-text">0 B / 0 B</span>
+            <span id="upload-percent-text" class="upload-percent-pill">0%</span>
+            <button class="btn btn-secondary btn-sm" id="upload-pause-btn">⏸️ พัก</button>
+            <button class="btn btn-danger btn-sm" id="upload-cancel-btn">✕ ยกเลิก</button>
+            <button class="btn btn-secondary btn-sm hidden" id="upload-close-btn">✕ ปิด</button>
+          </div>
+        </div>
+        <div class="progress-bar progress-lg" style="margin: 8px 0 12px;">
+          <div id="upload-progress-bar" class="progress-fill progress-accent" style="width: 0%"></div>
+        </div>
+        <div id="upload-items-list" class="upload-items-list"></div>
+      </div>
+
+      <!-- VIEW 1: FILE EXPLORER -->
+      <section id="view-files" class="view-section">
+        <!-- Phase 9: Recent Files & Quick Access Strip -->
+        <div id="recent-files-panel" class="recent-files-panel hidden">
+          <div class="recent-files-header">
+            <div class="recent-files-title">
+              <span>🕒 ไฟล์ที่แก้ไขหรือใช้งานล่าสุด (Quick Recent Access)</span>
+              <span class="recent-hint-pill">คลิกขวาที่ไฟล์เพื่อเปิดเมนูคำสั่งด่วน • ลากไฟล์วางทับโฟลเดอร์เพื่อย้ายได้ทันที</span>
+            </div>
+            <button type="button" class="btn-toggle-recent" id="toggle-recent-strip-btn" title="ซ่อน/แสดงแถบไฟล์ล่าสุด">ซ่อน ▲</button>
+          </div>
+          <div id="recent-files-strip" class="recent-files-strip"></div>
+        </div>
+
+        <div class="files-workspace-split">
+          <div class="files-main-column">
+            <div id="files-container" class="files-grid"></div>
+            <div id="files-empty" class="empty-state hidden">
+              <div class="empty-icon">📂</div>
+              <h3>โฟลเดอร์นี้ยังว่างเปล่า</h3>
+              <p>ลากไฟล์มาวางที่นี่ หรือกดปุ่ม <strong>"อัปโหลดไฟล์"</strong> ด้านบนเพื่อเพิ่มไฟล์เข้าสู่ NAS</p>
+            </div>
+          </div>
+
+          <!-- Phase 9: File Inspector Side Drawer -->
+          <aside id="file-inspector-drawer" class="file-inspector-drawer hidden">
+            <div class="inspector-header">
+              <h4>ℹ️ ข้อมูลเชิงลึก (File Inspector)</h4>
+              <button type="button" class="btn-close" id="close-inspector-btn">✕</button>
+            </div>
+            <div id="inspector-body" class="inspector-body"></div>
+          </aside>
+        </div>
+      </section>
+
+      <!-- VIEW 1.1: FAVORITES / STARRED ITEMS (PHASE 5) -->
+      <section id="view-favorites" class="view-section hidden">
+        <div class="section-banner">
+          <div>
+            <h3>⭐ รายการโปรดของคุณ (Starred Files & Folders)</h3>
+            <p>รวมไฟล์และโฟลเดอร์สำคัญที่คุณกดติดดาวไว้ เข้าถึงด่วนได้ทันทีโดยไม่ต้องไล่เปิดทีละโฟลเดอร์</p>
+          </div>
+        </div>
+        <div id="favorites-container" class="files-list"></div>
+        <div id="favorites-empty" class="empty-state hidden">
+          <div class="empty-icon">⭐</div>
+          <h3>ยังไม่มีรายการโปรด</h3>
+          <p>กดปุ่ม <strong>"☆"</strong> บนการ์ดไฟล์หรือโฟลเดอร์ใดก็ได้ในหน้าไฟล์ทั้งหมดเพื่อปักหมุดไว้ที่นี่</p>
+        </div>
+      </section>
+
+      <!-- VIEW 1.2: PHOTO GALLERY & MEDIA CENTER (PHASE 5) -->
+      <section id="view-gallery" class="view-section hidden">
+        <div class="section-banner">
+          <div>
+            <h3>📸 แกลเลอรีรูปภาพและวิดีโอ (Photo Gallery & Media Center)</h3>
+            <p>รวบรวมรูปภาพและวิดีโอจากทุกโฟลเดอร์ในพื้นที่ของคุณ คลิกที่รูปเพื่อเปิดโหมด Lightbox สไลด์โชว์เต็มจอ</p>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-primary gallery-filter-btn" data-type="all">🖼️ ทั้งหมด (All)</button>
+            <button class="btn btn-secondary gallery-filter-btn" data-type="image">📷 เฉพาะรูปภาพ</button>
+            <button class="btn btn-secondary gallery-filter-btn" data-type="video">🎬 เฉพาะวิดีโอ</button>
+          </div>
+        </div>
+        <div id="gallery-container" class="files-grid"></div>
+        <div id="gallery-empty" class="empty-state hidden">
+          <div class="empty-icon">🖼️</div>
+          <h3>ยังไม่มีรูปภาพหรือวิดีโอในระบบ</h3>
+          <p>เมื่อคุณอัปโหลดไฟล์รูปภาพ (`.jpg`, `.png`, `.webp`) หรือวิดีโอ (`.mp4`, `.mov`) ระบบจะนำมาแสดงในแกลเลอรีนี้โดยอัตโนมัติ</p>
+        </div>
+      </section>
+
+      <!-- VIEW 1.28: CROSS-DEVICE CLIPBOARD & SNIPPET HUB (PHASE 7) -->
+      <section id="view-clipboard" class="view-section hidden">
+        <div class="section-banner">
+          <div>
+            <h3>📋 กระดานคลิปบอร์ดส่งข้อความ/ลิงก์ข้ามเครื่อง (Cross-Device Clipboard & Snippet Hub)</h3>
+            <p>ส่งลิงก์ยาวๆ โค้ด หรือข้อความระหว่างมือถือและคอมในวง LAN ทันทีโดยไม่ต้องทักแชทหาตัวเอง</p>
+          </div>
+        </div>
+
+        <div class="sys-card" style="margin-bottom: 20px;">
+          <form id="clipboard-form">
+            <div style="display:grid;grid-template-columns:1fr auto;gap:10px;margin-bottom:10px;">
+              <input
+                type="text"
+                id="clipboard-title-input"
+                placeholder="หัวข้อสั้นๆ (ไม่บังคับ เช่น ลิงก์โหลดงาน / รหัส Wi-Fi)..."
+                style="padding:10px 12px;border-radius:8px;border:1px solid var(--border-color);background:var(--bg-main);color:var(--text-primary);"
+              />
+              <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-secondary);padding:0 8px;">
+                <input type="checkbox" id="clipboard-shared-check" checked />
+                แชร์ให้ทุกบัญชีใน NAS เห็น
+              </label>
+            </div>
+            <div class="form-group" style="margin-bottom:10px;">
+              <textarea
+                id="clipboard-content-input"
+                class="code-editor"
+                style="min-height:95px;"
+                placeholder="วางลิงก์ ข้อความ หรือโค้ดที่ต้องการส่งข้ามเครื่องที่นี่..."
+                required
+              ></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary">📌 โพสต์ลงกระดานคลิปบอร์ด</button>
+          </form>
+        </div>
+
+        <div id="clipboard-items-list" class="files-list"></div>
+      </section>
+
+      <!-- VIEW 1.3: ACTIVITY AUDIT LOGS & BRUTE-FORCE SECURITY (PHASE 5 - ADMIN) -->
+      <section id="view-audit" class="view-section hidden">
+        <div class="section-banner">
+          <div>
+            <h3>📜 ประวัติการใช้งานระบบ & ความปลอดภัย (Activity Audit Logs & Brute-force Protection)</h3>
+            <p>บันทึกทุกเหตุการณ์สำคัญพร้อมหมายเลข IP และระบบบล็อก IP อัตโนมัติเมื่อล็อกอินผิดเกิน 5 ครั้งใน 15 นาที</p>
+          </div>
+          <button class="btn btn-danger" id="clear-audit-logs-btn">🧹 ล้างประวัติทั้งหมด</button>
+        </div>
+
+        <!-- Locked IPs Box -->
+        <div id="locked-ips-card" class="sys-card" style="margin-bottom: 18px;">
+          <div class="sys-card-header" style="margin-bottom: 10px;">
+            <span class="sys-icon">🛡️</span>
+            <div>
+              <h3>สถานะการป้องกัน Brute-force IP Lockout (ล็อกนาน 15 นาทีเมื่อรหัสผิดครบ 5 ครั้ง)</h3>
+              <p id="locked-ips-summary">กำลังตรวจสอบรายการ IP ที่เฝ้าระวัง...</p>
+            </div>
+          </div>
+          <div id="locked-ips-list" class="files-list"></div>
+        </div>
+
+        <!-- Audit Log Table -->
+        <div id="audit-logs-list" class="files-list"></div>
+      </section>
+
+      <!-- VIEW 1.5: GLOBAL FILE INDEXER, SEARCH & DUPLICATE DETECTOR (PHASE 4) -->
+      <section id="view-indexer" class="view-section hidden">
+        <div class="section-banner">
+          <div>
+            <h3>🔍 ค้นหาไฟล์ข้ามโฟลเดอร์ & ตรวจจับไฟล์ซ้ำ (Fast File Indexing & Duplicate Detector)</h3>
+            <p>ค้นหาไฟล์ทุกโฟลเดอร์ในเสี้ยววินาทีด้วย SQLite Index หรือสแกนหาไฟล์ที่ซ้ำกันเพื่อคืนพื้นที่ว่าง</p>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-secondary" id="rebuild-index-btn">
+              🔄 อัปเดตดัชนีไฟล์ (Rebuild Index)
+            </button>
+            <button class="btn btn-primary" id="scan-duplicates-btn">
+              🕵️ สแกนหาไฟล์ซ้ำซ้อน (Find Duplicates)
+            </button>
+          </div>
+        </div>
+
+        <!-- Global Search Bar & Category Filter -->
+        <div class="sys-card" style="margin-bottom: 20px;">
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
+            <input
+              type="text"
+              id="global-search-input"
+              placeholder="พิมพ์ชื่อไฟล์ที่ต้องการค้นหาจากทุกโฟลเดอร์..."
+              style="flex:1;min-width:220px;padding:10px 14px;border-radius:8px;border:1px solid var(--border-color);background:var(--bg-main);color:var(--text-primary);"
+            />
+            <select id="global-category-select" class="sort-select">
+              <option value="all">ทุกประเภทไฟล์ (All Categories)</option>
+              <option value="image">🖼️ รูปภาพ (Images)</option>
+              <option value="video">🎬 วิดีโอ (Videos)</option>
+              <option value="audio">🎵 เพลง/เสียง (Audio)</option>
+              <option value="document">📕 เอกสาร (Documents)</option>
+              <option value="text">📝 โค้ด/ข้อความ (Text & Code)</option>
+              <option value="archive">📦 ไฟล์บีบอัด (Archives)</option>
+            </select>
+            <button class="btn btn-primary" id="global-search-btn">🔍 ค้นหาทันที</button>
+          </div>
+          <div id="global-search-results" class="files-list"></div>
+        </div>
+
+        <!-- Phase 8: Full-Text Content Grep Search -->
+        <div class="sys-card" style="margin-bottom: 20px;">
+          <div class="sys-card-header" style="margin-bottom: 12px;">
+            <span class="sys-icon">📄</span>
+            <div>
+              <h3>ค้นหาคำข้างในเนื้อหาไฟล์ (Full-Text Content Grep Search)</h3>
+              <p>สแกนหาข้อความ โค้ด หรือคำสำคัญที่อยู่ข้างในไฟล์ (`.txt`, `.md`, `.csv`, `.json`, `.js`, `.py`, `.log` ฯลฯ) พร้อมแสดงเลขบรรทัด</p>
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;align-items:center;">
+            <input
+              type="text"
+              id="grep-search-input"
+              placeholder="พิมพ์คำหรือประโยคข้างในเนื้อหาไฟล์ที่ต้องการค้นหา..."
+              style="flex:1;min-width:220px;padding:10px 14px;border-radius:8px;border:1px solid var(--border-color);background:var(--bg-input);color:var(--text-primary);"
+            />
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-secondary);">
+              <input type="checkbox" id="grep-case-check" />
+              ตัวพิมพ์เล็ก-ใหญ่ตรงกัน (Case-sensitive)
+            </label>
+            <button class="btn btn-primary" id="grep-search-btn">🔎 ค้นหาในเนื้อหาไฟล์</button>
+          </div>
+          <div id="grep-search-summary" style="font-size:13px;color:var(--text-secondary);margin-bottom:10px;"></div>
+          <div id="grep-search-results" class="files-list"></div>
+        </div>
+
+        <!-- Duplicate Files Report -->
+        <div id="duplicates-panel" class="sys-card hidden">
+          <div class="sys-card-header" style="margin-bottom: 14px;">
+            <span class="sys-icon">🕵️</span>
+            <div>
+              <h3>ผลการสแกนไฟล์ซ้ำซ้อน (Duplicate Files Report)</h3>
+              <p id="duplicates-summary-text">กำลังวิเคราะห์...</p>
+            </div>
+          </div>
+          <div id="duplicates-list" class="files-list"></div>
+        </div>
+      </section>
+
+      <!-- VIEW 4.5: WEBDAV & AUTO-BACKUP SCHEDULED TASKS (PHASE 4) -->
+      <section id="view-advanced" class="view-section hidden">
+        <div class="system-grid" style="margin-bottom: 20px;">
+          <!-- WebDAV Network Drive Card -->
+          <div class="sys-card">
+            <div class="sys-card-header" style="margin-bottom: 12px;">
+              <span class="sys-icon">💿</span>
+              <div>
+                <h3>WebDAV Network Drive (เชื่อมต่อเป็นไดรฟ์บนคอม/มือถือ)</h3>
+                <p>เข้าถึงและจัดการไฟล์ใน NAS ได้โดยตรงจาก Finder หรือ Windows Explorer ไม่ต้องเปิดเว็บ</p>
+              </div>
+            </div>
+            <div class="share-url-row" style="margin-bottom: 14px;">
+              <input type="text" id="webdav-url-input" readonly />
+              <button type="button" class="btn btn-primary" id="copy-webdav-url-btn">📋 คัดลอก URL</button>
+            </div>
+            <div class="sys-stats-list" style="font-size:13px;line-height:1.6;">
+              <div><strong>🍎 วิธีต่อบน macOS (Finder):</strong> กด <code>Cmd + K</code> ใน Finder → วาง URL ด้านบน → กด Connect → ใส่ชื่อผู้ใช้และรหัสผ่าน NAS ของคุณ</div>
+              <div><strong>🪟 วิธีต่อบน Windows (Explorer):</strong> คลิกขวาที่ <code>This PC</code> → เลือก <code>Map network drive...</code> → วาง URL ด้านบนและติ๊ก Connect using different credentials</div>
+              <div><strong>📱 วิธีต่อบน iOS / Android:</strong> ใช้แอปจัดการไฟล์ที่รองรับ WebDAV (เช่น FE File Explorer, Documents, CX File Explorer) แล้วใส่ URL ด้านบน</div>
+            </div>
+          </div>
+
+          <!-- Auto-Backup & Trash Retention Settings Card (Admin) -->
+          <div class="sys-card" id="scheduler-settings-card">
+            <div class="sys-card-header" style="margin-bottom: 12px;">
+              <span class="sys-icon">⏰</span>
+              <div>
+                <h3>ตั้งค่า Auto-Backup & ล้างถังขยะอัตโนมัติ (Scheduled Tasks)</h3>
+                <p>ทำงานเบื้องหลังอัตโนมัติเพื่อสำรองข้อมูลและเคลียร์ไฟล์ขยะที่หมดอายุ</p>
+              </div>
+            </div>
+            <form id="scheduler-config-form">
+              <div class="form-group" style="display:flex;align-items:center;gap:10px;">
+                <input type="checkbox" id="sched-auto-backup" style="width:18px;height:18px;" />
+                <label for="sched-auto-backup" style="margin:0;color:var(--text-primary);">เปิดใช้งานการสร้าง Backup Snapshot อัตโนมัติ</label>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                <div class="form-group">
+                  <label for="sched-interval-hours">ความถี่ในการสำรองข้อมูล (ชั่วโมง):</label>
+                  <input type="number" id="sched-interval-hours" min="1" value="24" required />
+                </div>
+                <div class="form-group">
+                  <label for="sched-max-keep">จำนวนไฟล์ Backup สูงสุดที่เก็บไว้:</label>
+                  <input type="number" id="sched-max-keep" min="1" value="5" required />
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="sched-trash-days">🗑️ ลบไฟล์ในถังขยะอัตโนมัติเมื่อค้างเกิน (วัน):</label>
+                <input type="number" id="sched-trash-days" min="1" value="30" required />
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <button type="submit" class="btn btn-primary">💾 บันทึกตารางงานอัตโนมัติ</button>
+                <button type="button" class="btn btn-secondary" id="run-trash-cleanup-btn">🧹 ล้างไฟล์เก่าในถังขยะทันที</button>
+              </div>
+            </form>
+          </div>
+
+          <!-- Storage Location / Custom Directory Settings Card (Admin) -->
+          <div class="sys-card" id="storage-path-settings-card" style="grid-column: 1 / -1;">
+            <div class="sys-card-header" style="margin-bottom: 14px; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <span class="sys-icon">🗄️</span>
+                <div>
+                  <h3>ตำแหน่งจัดเก็บข้อมูลของ NAS (Storage Pool & Custom Directory)</h3>
+                  <p>สามารถย้ายโฟลเดอร์เก็บข้อมูลไปยัง External Hard Drive / SSD หรือโฟลเดอร์อื่นนอกตัวโค้ดได้</p>
+                </div>
+              </div>
+              <span id="storage-path-status-badge" class="sys-badge" style="background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3);">
+                🟢 โฟลเดอร์เริ่มต้น (Default)
+              </span>
+            </div>
+
+            <!-- Current Storage Status Box -->
+            <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 10px; padding: 14px 16px; margin-bottom: 16px;">
+              <div style="display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 8px;">
+                <span style="font-size: 13px; color: var(--text-secondary); font-weight: 500;">📍 โฟลเดอร์ปัจจุบันที่ระบบใช้งานอยู่:</span>
+                <span id="storage-disk-free-badge" style="font-size: 12px; color: #10b981; font-weight: 600;">ความจุว่าง: กำลังอ่าน...</span>
+              </div>
+              <div style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 13px; word-break: break-all; color: var(--primary); background: rgba(0,0,0,0.25); padding: 8px 12px; border-radius: 6px; border: 1px dashed rgba(255,255,255,0.15);" id="storage-current-path-display">
+                กำลังอ่านข้อมูล...
+              </div>
+              <div id="storage-env-warning" class="hidden" style="margin-top: 8px; font-size: 12px; color: #f59e0b; display: flex; align-items: center; gap: 6px;">
+                <span>⚠️ ตำแหน่งนี้ถูกระบุผ่าน Environment Variable <code>STORAGE_PATH</code> ซึ่งมีความสำคัญสูงสุด</span>
+              </div>
+            </div>
+
+            <!-- Change Storage Form -->
+            <form id="storage-path-form">
+              <div class="form-group">
+                <label for="storage-new-path-input" style="font-weight: 600; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
+                  <span>เปลี่ยนตำแหน่งโฟลเดอร์จัดเก็บข้อมูลใหม่ (Absolute Path):</span>
+                  <span style="font-size: 12px; font-weight: normal; color: var(--text-secondary);">ตัวอย่าง macOS: <code>/Volumes/DriveName/NAS_Data</code> • Windows: <code>D:\NAS_Data</code></span>
+                </label>
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                  <input type="text" id="storage-new-path-input" placeholder="/Volumes/ชื่อฮาร์ดดิสก์ภายนอก/NAS_Storage หรือ /Users/.../Storage" style="flex: 1; min-width: 260px;" required />
+                  <button type="button" class="btn btn-secondary" id="test-storage-path-btn" style="white-space: nowrap;">
+                    🔍 ตรวจสอบสิทธิ์ & พื้นที่ว่าง
+                  </button>
+                </div>
+              </div>
+
+              <!-- Test Path Result Feedback Box -->
+              <div id="storage-path-test-result" class="hidden" style="margin-bottom: 14px; padding: 12px 14px; border-radius: 8px; font-size: 13px; line-height: 1.5;"></div>
+
+              <div class="form-group" style="display: flex; align-items: center; gap: 10px; margin-bottom: 16px;">
+                <input type="checkbox" id="storage-migrate-checkbox" style="width: 18px; height: 18px; cursor: pointer;" />
+                <label for="storage-migrate-checkbox" style="margin: 0; color: var(--text-primary); cursor: pointer;">
+                  📦 คัดลอกไฟล์เดิมจาก Storage ปัจจุบันไปยังโฟลเดอร์ใหม่ด้วย (Migrate existing files)
+                </label>
+              </div>
+
+              <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+                <button type="submit" class="btn btn-primary" id="save-storage-path-btn">
+                  💾 บันทึกและสลับใช้ไดรฟ์นี้
+                </button>
+                <button type="button" class="btn btn-secondary" id="reset-storage-path-btn" style="color: #ef4444; border-color: rgba(239, 68, 68, 0.3);">
+                  🔄 รีเซ็ตกลับเป็นค่าเริ่มต้น (Default)
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Backup Snapshots List -->
+        <div class="section-banner" id="backups-banner">
+          <div>
+            <h3>📦 ไฟล์สำรองข้อมูลของระบบ (Backup Snapshots — `storage/backups/`)</h3>
+            <p id="last-backup-status-text">สามารถกดสร้าง Snapshot ทันทีเพื่อบีบอัดไฟล์ทั้งหมดเก็บเป็นชุดสำรองข้อมูล `.ZIP`</p>
+          </div>
+          <button class="btn btn-primary" id="create-backup-now-btn">
+            ➕ สร้าง Backup Snapshot ทันที
+          </button>
+        </div>
+        <div id="backups-list" class="files-list"></div>
+      </section>
+
+      <!-- VIEW 2: SHARED LINKS & FILE DROP REQUESTS (PHASE 3 & PHASE 6) -->
+      <section id="view-shares" class="view-section hidden">
+        <div class="section-banner">
+          <div>
+            <h3>🔗 ลิงก์แชร์ดาวน์โหลดสาธารณะ (`/s/:token`)</h3>
+            <p>จัดการลิงก์ที่คุณแชร์ให้บุคคลภายนอกดาวน์โหลดไฟล์ ดูจำนวนครั้งที่ถูกดาวน์โหลด คัดลอกลิงก์ หรือกดยกเลิกลิงก์ได้ทันที</p>
+          </div>
+        </div>
+
+        <div id="shares-container" class="files-list" style="margin-bottom: 24px;"></div>
+        <div id="shares-empty" class="empty-state hidden" style="padding: 36px 20px;">
+          <div class="empty-icon">🔗</div>
+          <h3>ยังไม่มีลิงก์แชร์ดาวน์โหลด</h3>
+          <p>กดปุ่ม <strong>"🔗 แชร์"</strong> บนไฟล์หรือโฟลเดอร์ใดก็ได้ในหน้าไฟล์ทั้งหมดเพื่อสร้างลิงก์แชร์สาธารณะ</p>
+        </div>
+
+        <!-- Phase 6: File Drop / Upload Request Links -->
+        <div class="section-banner" style="margin-top: 24px;">
+          <div>
+            <h3>📥 ลิงก์รับฝากไฟล์จากบุคคลภายนอก (File Drop / Upload Requests — `/d/:token`)</h3>
+            <p>ส่งลิงก์ให้เพื่อนหรือลูกค้าอัปโหลดไฟล์ส่งเข้ามาในโฟลเดอร์ NAS ของคุณได้โดยตรงโดยไม่ต้องมีบัญชี NAS</p>
+          </div>
+          <button class="btn btn-primary" id="open-create-drop-btn">
+            ➕ สร้างลิงก์รับฝากไฟล์ใหม่
+          </button>
+        </div>
+        <div id="file-requests-container" class="files-list"></div>
+      </section>
+
+      <!-- VIEW 2.5: DEEP STORAGE ANALYZER (PHASE 6) -->
+      <section id="view-analyzer" class="view-section hidden">
+        <div class="section-banner">
+          <div>
+            <h3>📈 วิเคราะห์การใช้พื้นที่เชิงลึก (Deep Storage Analyzer & Top Largest Files)</h3>
+            <p id="analyzer-summary-text">เจาะลึกว่าไฟล์ประเภทใดและโฟลเดอร์ใดใช้พื้นที่มากที่สุด พร้อมจัดอันดับ 20 ไฟล์ที่มีขนาดใหญ่ที่สุดใน NAS</p>
+          </div>
+          <button class="btn btn-primary" id="refresh-analyzer-btn">🔄 สแกนวิเคราะห์ใหม่</button>
+        </div>
+
+        <div class="system-grid" style="margin-bottom: 22px;">
+          <div class="sys-card">
+            <div class="sys-card-header" style="margin-bottom: 14px;">
+              <span class="sys-icon">📊</span>
+              <div>
+                <h3>สัดส่วนพื้นที่แยกตามประเภทไฟล์ (Storage by Category)</h3>
+                <p>วิเคราะห์จากไฟล์ทั้งหมดในพื้นที่จัดเก็บของคุณ</p>
+              </div>
+            </div>
+            <div id="analyzer-categories-list" class="sys-stats-list"></div>
+          </div>
+
+          <div class="sys-card">
+            <div class="sys-card-header" style="margin-bottom: 14px;">
+              <span class="sys-icon">📂</span>
+              <div>
+                <h3>10 อันดับโฟลเดอร์ที่ใช้พื้นที่มากที่สุด (Top Folders by Size)</h3>
+                <p>คลิกที่โฟลเดอร์เพื่อเปิดดูไฟล์ภายในได้ทันที</p>
+              </div>
+            </div>
+            <div id="analyzer-folders-list" class="files-list"></div>
+          </div>
+        </div>
+
+        <div class="sys-card">
+          <div class="sys-card-header" style="margin-bottom: 14px;">
+            <span class="sys-icon">🏋️</span>
+            <div>
+              <h3>Top 20 ไฟล์ที่มีขนาดใหญ่ที่สุดใน NAS (Largest Individual Files)</h3>
+              <p>จัดการไฟล์ขนาดใหญ่เพื่อคืนพื้นที่ว่างได้อย่างรวดเร็ว</p>
+            </div>
+          </div>
+          <div id="analyzer-largest-files" class="files-list"></div>
+        </div>
+      </section>
+
+      <!-- VIEW 3: RECYCLE BIN (TRASH) -->
+      <section id="view-trash" class="view-section hidden">
+        <div class="section-banner">
+          <div>
+            <h3>🗑️ ถังขยะ (Recycle Bin)</h3>
+            <p>ไฟล์ที่ถูกลบจะถูกเก็บพักไว้ที่นี่ คุณสามารถกู้คืนกลับไปยังโฟลเดอร์เดิม หรือลบออกถาวรเพื่อคืนพื้นที่ Disk</p>
+          </div>
+          <button class="btn btn-danger" id="empty-trash-btn">
+            🔥 ล้างถังขยะทั้งหมด
+          </button>
+        </div>
+
+        <div id="trash-container" class="files-list"></div>
+        <div id="trash-empty" class="empty-state hidden">
+          <div class="empty-icon">✨</div>
+          <h3>ถังขยะว่างเปล่า</h3>
+          <p>ไม่มีไฟล์หรือโฟลเดอร์ที่ถูกลบค้างอยู่ในระบบ</p>
+        </div>
+      </section>
+
+      <!-- VIEW 4: USERS & QUOTA MANAGEMENT (ADMIN ONLY - PHASE 3) -->
+      <section id="view-users" class="view-section hidden">
+        <div class="section-banner">
+          <div>
+            <h3>👥 จัดการบัญชีผู้ใช้และโควตาพื้นที่ (User Management & Storage Quota)</h3>
+            <p>สร้างบัญชีแยกสำหรับสมาชิกในบ้าน โดยผู้ใช้ทั่วไปจะมีโฟลเดอร์ส่วนตัวแยกกัน (`storage/files/Users/{username}`) และจำกัดโควตาพื้นที่ได้</p>
+          </div>
+          <button class="btn btn-primary" id="create-user-btn">
+            ➕ เพิ่มบัญชีผู้ใช้ใหม่
+          </button>
+        </div>
+
+        <div id="users-container" class="files-list" style="margin-bottom: 24px;"></div>
+
+        <!-- Upload File Extension Policy Card -->
+        <div class="sys-card">
+          <div class="sys-card-header" style="margin-bottom: 14px;">
+            <span class="sys-icon">🛡️</span>
+            <div>
+              <h3>นโยบายการจำกัดนามสกุลไฟล์อัปโหลด (File Extension Filter Policy)</h3>
+              <p>โดยค่าเริ่มต้น NAS มาตรฐานจะอนุญาตทุกนามสกุลไฟล์ แต่แอดมินสามารถตั้งค่าบล็อกไฟล์อันตราย (Blocklist) หรือจำกัดเฉพาะนามสกุลที่อนุญาต (Allowlist) ได้</p>
+            </div>
+          </div>
+          <form id="extension-policy-form" class="policy-form">
+            <div class="form-group">
+              <label for="policy-mode-select">โหมดการคัดกรองนามสกุลไฟล์:</label>
+              <select id="policy-mode-select" class="folder-select">
+                <option value="allow_all">✅ อนุญาตทุกนามสกุลไฟล์ (Allow All — ค่ามาตรฐานของ NAS)</option>
+                <option value="blocklist">🚫 บล็อกเฉพาะนามสกุลที่ระบุ (Blocklist — ป้องกันไฟล์อันตราย/ไฟล์ขยะ)</option>
+                <option value="allowlist">🔒 อนุญาตเฉพาะนามสกุลที่ระบุเท่านั้น (Allowlist — เข้มงวดพิเศษ)</option>
+              </select>
+            </div>
+            <div class="form-group" id="policy-extensions-group">
+              <label for="policy-extensions-input">รายการนามสกุลไฟล์ (คั่นด้วยเครื่องหมายจุลภาค `,` เช่น `.exe, .bat, .cmd, .vbs`):</label>
+              <input
+                type="text"
+                id="policy-extensions-input"
+                placeholder=".exe, .bat, .cmd, .scr, .vbs"
+              />
+            </div>
+            <button type="submit" class="btn btn-primary">💾 บันทึกนโยบายนามสกุลไฟล์</button>
+          </form>
+        </div>
+      </section>
+
+      <!-- VIEW 5: SYSTEM MONITOR (WATTVISION 12-COLUMN TELEMETRY DASHBOARD) -->
+      <section id="view-system" class="view-section hidden">
+        <!-- Row 1: 3 KPI Cards (4 Columns each in 12-column grid) -->
+        <div class="watt-dashboard-grid">
+          <!-- KPI 1: CPU Load -->
+          <div class="sys-card col-span-4">
+            <div class="sys-card-header">
+              <span class="sys-icon">⚡</span>
+              <div>
+                <h3>หน่วยประมวลผล (CPU Load)</h3>
+                <p id="sys-cpu-model">กำลังอ่านข้อมูล CPU...</p>
+              </div>
+              <span class="sys-badge kpi-value" id="sys-cpu-percent">0%</span>
+            </div>
+            <div class="progress-bar progress-lg">
+              <div id="sys-cpu-bar" class="progress-fill progress-accent" style="width: 0%"></div>
+            </div>
+            <div class="sys-stats-list">
+              <div class="sys-stat-row">
+                <span>จำนวนแกนประมวลผล (Logical Cores):</span>
+                <strong id="sys-cpu-cores">-</strong>
+              </div>
+              <div class="sys-stat-row">
+                <span>Load Average (1m / 5m / 15m):</span>
+                <strong id="sys-cpu-load">-</strong>
+              </div>
+              <div class="sys-stat-row">
+                <span>ระบบปฏิบัติการ (OS Platform):</span>
+                <strong id="sys-os-platform">-</strong>
+              </div>
+              <div class="sys-stat-row">
+                <span>เวลาเปิดเครื่องต่อเนื่อง (System Uptime):</span>
+                <strong id="sys-uptime">-</strong>
+              </div>
+            </div>
+          </div>
+
+          <!-- KPI 2: Memory (RAM) -->
+          <div class="sys-card col-span-4">
+            <div class="sys-card-header">
+              <span class="sys-icon">🔌</span>
+              <div>
+                <h3>หน่วยความจำ (RAM Telemetry)</h3>
+                <p>สถานะหน่วยความจำใช้งานจริงแบบ Real-time</p>
+              </div>
+              <span class="sys-badge kpi-value" id="sys-ram-percent">0%</span>
+            </div>
+            <div class="progress-bar progress-lg">
+              <div id="sys-ram-bar" class="progress-fill progress-warn" style="width: 0%"></div>
+            </div>
+            <div class="sys-stats-list">
+              <div class="sys-stat-row">
+                <span>RAM ทั้งหมด (Total Memory):</span>
+                <strong id="sys-ram-total">-</strong>
+              </div>
+              <div class="sys-stat-row">
+                <span>ใช้งานจริง (App + System Wired):</span>
+                <strong id="sys-ram-used">-</strong>
+              </div>
+              <div class="sys-stat-row">
+                <span>ว่างพร้อมใช้งาน (Available Memory):</span>
+                <strong id="sys-ram-free" class="text-success">-</strong>
+              </div>
+              <div class="sys-stat-row">
+                <span>⚡ แคชไฟล์ระบบ (Cached — คืนค่าอัตโนมัติ):</span>
+                <strong id="sys-ram-cached" style="color:var(--primary);">-</strong>
+              </div>
+            </div>
+          </div>
+
+          <!-- KPI 3: Disk Storage -->
+          <div class="sys-card col-span-4">
+            <div class="sys-card-header">
+              <span class="sys-icon">📟</span>
+              <div>
+                <h3>พื้นที่จัดเก็บข้อมูล (Storage Meter)</h3>
+                <p>สถานะพาร์ทิชันที่ติดตั้ง NAS Server</p>
+              </div>
+              <span class="sys-badge kpi-value" id="sys-disk-percent">0%</span>
+            </div>
+            <div class="progress-bar progress-lg">
+              <div id="sys-disk-bar" class="progress-fill" style="width: 0%"></div>
+            </div>
+            <div class="sys-stats-list">
+              <div class="sys-stat-row">
+                <span>ความจุทั้งหมด (Total Capacity):</span>
+                <strong id="sys-disk-total">-</strong>
+              </div>
+              <div class="sys-stat-row">
+                <span>พื้นที่ใช้งานทั้งหมดในเครื่อง (Used):</span>
+                <strong id="sys-disk-used">-</strong>
+              </div>
+              <div class="sys-stat-row">
+                <span>พื้นที่ว่างคงเหลือ (Available Free):</span>
+                <strong id="sys-disk-free" class="text-success">-</strong>
+              </div>
+              <div class="sys-stat-row">
+                <span>📁 ขนาดไฟล์ใน NAS (`storage/files`):</span>
+                <strong id="sys-nas-files-size">-</strong>
+              </div>
+              <div class="sys-stat-row">
+                <span>🗑️ ขนาดไฟล์ในถังขยะ:</span>
+                <strong id="sys-nas-trash-size">-</strong>
+              </div>
+              <div class="sys-stat-row" style="border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 8px; margin-top: 4px;">
+                <span>📍 ตำแหน่งไดรฟ์จัดเก็บ:</span>
+                <strong id="sys-storage-location-label" style="font-size: 11px; word-break: break-all; color: var(--primary);">-</strong>
+              </div>
+            </div>
+          </div>
+
+          <!-- Row 2 Left (8 Columns): Smooth Area Telemetry Graph -->
+          <div class="sys-card col-span-8">
+            <div class="sys-card-header" style="justify-content:space-between;flex-wrap:wrap;">
+              <div style="display:flex;align-items:center;gap:14px;">
+                <span class="sys-icon">⚡</span>
+                <div>
+                  <h3>กราฟมอนิเตอร์ทรัพยากรแบบสด (Live Resource Telemetry Area Chart)</h3>
+                  <p>แสดงความเคลื่อนไหวของ CPU Load และ RAM Usage ย้อนหลังแบบ Real-time (อัปเดตทุก 3 วินาที)</p>
+                </div>
+              </div>
+              <div style="display:flex;align-items:center;gap:14px;">
+                <div class="telemetry-legend">
+                  <span><i class="legend-dot" style="background:#00E5FF;box-shadow:0 0 8px #00E5FF;"></i>CPU (%)</span>
+                  <span><i class="legend-dot" style="background:#32D74B;box-shadow:0 0 8px #32D74B;"></i>RAM (%)</span>
+                </div>
+                <span class="live-status-pill">EN VIVO / LIVE</span>
+              </div>
+            </div>
+
+            <div class="telemetry-chart-box">
+              <svg
+                id="telemetry-area-svg"
+                viewBox="0 0 720 210"
+                preserveAspectRatio="none"
+                style="width:100%;height:100%;display:block;"
+              ></svg>
+            </div>
+          </div>
+
+          <!-- Row 2 Right (4 Columns): Alerts Panel & LAN Endpoints -->
+          <div class="sys-card col-span-4">
+            <div class="sys-card-header" style="margin-bottom:14px;">
+              <span class="sys-icon">🔌</span>
+              <div>
+                <h3>แจ้งเตือนโหลดระบบ & เครือข่าย (Alerts & LAN)</h3>
+                <p>ตรวจจับโหลดพีคผิดปกติและจุดเชื่อมต่อในวง LAN</p>
+              </div>
+            </div>
+
+            <div id="telemetry-alerts-list"></div>
+
+            <hr class="sys-divider" style="margin:14px 0;" />
+            <div style="font-size:12.5px;font-weight:600;color:var(--text-secondary);margin-bottom:8px;">
+              🌐 จุดเชื่อมต่อเครือข่ายภายในบ้าน (LAN Endpoints):
+            </div>
+            <div id="sys-lan-list" class="lan-list"></div>
+          </div>
+
+          <!-- Row 3 Left (8 Columns): Live Top CPU & Memory Processes Table (Phase 9) -->
+          <div class="sys-card col-span-8">
+            <div class="sys-card-header" style="justify-content:space-between;flex-wrap:wrap;">
+              <div style="display:flex;align-items:center;gap:14px;">
+                <span class="sys-icon">📡</span>
+                <div>
+                  <h3>โปรเซสที่ใช้พลังงานสูงสุดบนเซิร์ฟเวอร์ (Top Active Processes Telemetry)</h3>
+                  <p>แสดงรายชื่อโปรเซสที่ใช้ CPU และ RAM สูงสุดบนเครื่องโฮสต์แบบสดๆ</p>
+                </div>
+              </div>
+              <button type="button" class="btn btn-secondary btn-sm" id="refresh-processes-btn">🔄 อัปเดตโปรเซส</button>
+            </div>
+            <div style="overflow-x:auto;">
+              <table class="csv-table process-table">
+                <thead>
+                  <tr>
+                    <th>PID</th>
+                    <th>ชื่อโปรเซส (Process Name)</th>
+                    <th>CPU %</th>
+                    <th>RAM %</th>
+                    <th>หน่วยความจำจริง (RSS)</th>
+                  </tr>
+                </thead>
+                <tbody id="sys-processes-tbody">
+                  <tr>
+                    <td colspan="5" style="text-align:center;color:var(--text-secondary);">กำลังอ่านข้อมูลโปรเซส...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Row 3 Right (4 Columns): NAS Node.js Core Engine Diagnostics (Phase 9) -->
+          <div class="sys-card col-span-4">
+            <div class="sys-card-header" style="margin-bottom:14px;">
+              <span class="sys-icon">⚙️</span>
+              <div>
+                <h3>สถานะเอนจิน NAS (NAS Core Engine)</h3>
+                <p>ข้อมูลการทำงานของโปรเซสเซิร์ฟเวอร์ NAS โดยตรง</p>
+              </div>
+            </div>
+            <div id="sys-nas-proc-meta" class="sys-stats-list">
+              <div class="sys-stat-row">
+                <span>Process PID:</span>
+                <strong id="nas-engine-pid">-</strong>
+              </div>
+              <div class="sys-stat-row">
+                <span>Node.js Runtime:</span>
+                <strong id="nas-engine-node">-</strong>
+              </div>
+              <div class="sys-stat-row">
+                <span>NAS Memory (RSS):</span>
+                <strong id="nas-engine-rss" style="color:var(--primary);">-</strong>
+              </div>
+              <div class="sys-stat-row">
+                <span>V8 Heap Used:</span>
+                <strong id="nas-engine-heap">-</strong>
+              </div>
+              <div class="sys-stat-row">
+                <span>NAS Server Uptime:</span>
+                <strong id="nas-engine-uptime" class="text-success">-</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- ================= MODAL: PREVIEW / TEXT EDITOR & LIGHTBOX SLIDESHOW ================= -->
+  <div id="preview-modal" class="modal-backdrop hidden">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-header">
+        <h3 id="preview-title">ชื่อไฟล์</h3>
+        <div class="modal-header-actions">
+          <button class="btn btn-secondary btn-sm hidden" id="preview-mode-render-btn">📖 โหมดอ่านสวยงาม</button>
+          <button class="btn btn-secondary btn-sm hidden" id="preview-mode-edit-btn">✏️ โหมดแก้ไขโค้ด</button>
+          <button class="btn btn-secondary btn-sm hidden" id="preview-prev-btn" title="ก่อนหน้า (Left Arrow)">◀ ก่อนหน้า</button>
+          <button class="btn btn-secondary btn-sm hidden" id="preview-next-btn" title="ถัดไป (Right Arrow)">ถัดไป ▶</button>
+          <button class="btn btn-primary hidden" id="save-text-btn">💾 บันทึกการแก้ไข</button>
+          <a id="preview-download-link" class="btn btn-secondary" href="#" download>⬇️ ดาวน์โหลด</a>
+          <button class="btn-close" id="close-preview-btn">✕</button>
+        </div>
+      </div>
+      <div id="preview-body" class="modal-body preview-body"></div>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: QUICK FILE CREATOR (PHASE 5) ================= -->
+  <div id="create-file-modal" class="modal-backdrop hidden">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3>📝 สร้างไฟล์ข้อความ / โค้ดใหม่</h3>
+        <button class="btn-close" id="close-create-file-btn">✕</button>
+      </div>
+      <form id="create-file-form" class="modal-body">
+        <div class="form-group">
+          <label for="create-file-name">ชื่อไฟล์ (เช่น `note.md`, `todo.txt`, `config.json`):</label>
+          <input type="text" id="create-file-name" placeholder="note.md" required />
+        </div>
+        <div class="form-group">
+          <label for="create-file-content">เนื้อหาเริ่มต้น (แก้ไขเพิ่มเติมภายหลังได้):</label>
+          <textarea
+            id="create-file-content"
+            class="code-editor"
+            style="min-height: 180px;"
+            placeholder="# บันทึกใหม่..."
+          ></textarea>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="cancel-create-file-btn">ยกเลิก</button>
+          <button type="submit" class="btn btn-primary">💾 สร้างไฟล์</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: REMOTE URL DOWNLOADER (CLOUD FETCH - PHASE 5) ================= -->
+  <div id="fetch-url-modal" class="modal-backdrop hidden">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3>🌐 ดึงไฟล์จาก URL ภายนอกลง NAS (Remote URL Downloader)</h3>
+        <button class="btn-close" id="close-fetch-url-btn">✕</button>
+      </div>
+      <form id="fetch-url-form" class="modal-body">
+        <div class="form-group">
+          <label for="fetch-url-input">ลิงก์ไฟล์ปลายทาง (`http://` หรือ `https://`):</label>
+          <input
+            type="url"
+            id="fetch-url-input"
+            placeholder="https://example.com/file.zip"
+            required
+          />
+        </div>
+        <div class="form-group">
+          <label for="fetch-url-filename">ตั้งชื่อไฟล์ที่จะบันทึก (เว้นว่างไว้เพื่อใช้ชื่อตามลิงก์):</label>
+          <input
+            type="text"
+            id="fetch-url-filename"
+            placeholder="เช่น archive.zip (ไม่บังคับ)"
+          />
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="cancel-fetch-url-btn">ยกเลิก</button>
+          <button type="submit" class="btn btn-primary" id="submit-fetch-url-btn">⬇️ ดึงไฟล์เข้า NAS ทันที</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: FILE VERSIONING & ROLLBACK (PHASE 5) ================= -->
+  <div id="versions-modal" class="modal-backdrop hidden">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-header">
+        <h3 id="versions-modal-title">🕓 ประวัติเวอร์ชันของไฟล์ (File Version History)</h3>
+        <div class="modal-header-actions">
+          <button type="button" class="btn btn-primary btn-sm" id="create-version-snapshot-btn">
+            ➕ เก็บ Snapshot เวอร์ชันปัจจุบันไว้
+          </button>
+          <button class="btn-close" id="close-versions-modal-btn">✕</button>
+        </div>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:13px;color:var(--text-secondary);margin-bottom:12px;">
+          💡 ระบบจะเก็บสำรองเวอร์ชันเดิมให้อัตโนมัติทุกครั้งที่คุณกดแก้ไขข้อความในไฟล์ หรือคุณสามารถกดปุ่ม <strong>"เก็บ Snapshot เวอร์ชันปัจจุบันไว้"</strong> เพื่อสร้างจุดย้อนคืนด้วยตัวเองได้สูงสุด 10 เวอร์ชันต่อไฟล์
+        </p>
+        <div id="versions-list-container" class="files-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: PROMPT (NEW FOLDER / RENAME) ================= -->
+  <div id="prompt-modal" class="modal-backdrop hidden">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 id="prompt-title">สร้างโฟลเดอร์ใหม่</h3>
+        <button class="btn-close" id="close-prompt-btn">✕</button>
+      </div>
+      <form id="prompt-form" class="modal-body">
+        <div class="form-group">
+          <label id="prompt-label" for="prompt-input">ชื่อ:</label>
+          <input type="text" id="prompt-input" required />
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="cancel-prompt-btn">ยกเลิก</button>
+          <button type="submit" class="btn btn-primary">ตกลง</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: MOVE / COPY DESTINATION PICKER ================= -->
+  <div id="folder-picker-modal" class="modal-backdrop hidden">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 id="folder-picker-title">📂 เลือกโฟลเดอร์ปลายทาง</h3>
+        <button class="btn-close" id="close-folder-picker-btn">✕</button>
+      </div>
+      <form id="folder-picker-form" class="modal-body">
+        <div class="form-group">
+          <label for="folder-picker-select">โฟลเดอร์ปลายทางใน NAS:</label>
+          <select id="folder-picker-select" class="folder-select" required></select>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="cancel-folder-picker-btn">ยกเลิก</button>
+          <button type="submit" class="btn btn-primary" id="confirm-folder-picker-btn">ดำเนินการ</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: CREATE PUBLIC SHARE LINK (PHASE 3) ================= -->
+  <div id="share-modal" class="modal-backdrop hidden">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 id="share-modal-title">🔗 สร้างลิงก์แชร์สาธารณะ</h3>
+        <button class="btn-close" id="close-share-modal-btn">✕</button>
+      </div>
+      <form id="share-form" class="modal-body">
+        <div class="form-group">
+          <label for="share-password">🔒 รหัสผ่านป้องกันลิงก์ (เว้นว่างไว้หากไม่ต้องการตั้งรหัส):</label>
+          <input type="password" id="share-password" placeholder="ไม่ต้องกรอกหากเปิดเป็นสาธารณะ..." />
+        </div>
+        <div class="form-group">
+          <label for="share-expires">⏳ อายุของลิงก์ (Expiration):</label>
+          <select id="share-expires" class="folder-select">
+            <option value="0">ไม่หมดอายุ (Never Expire)</option>
+            <option value="1">1 ชั่วโมง</option>
+            <option value="24" selected>24 ชั่วโมง (1 วัน)</option>
+            <option value="168">7 วัน</option>
+            <option value="720">30 วัน</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="share-max-downloads">📥 จำกัดจำนวนครั้งที่ดาวน์โหลดสูงสุด (0 = ไม่จำกัด):</label>
+          <input type="number" id="share-max-downloads" min="0" value="0" />
+        </div>
+
+        <div id="share-result-box" class="share-result-box hidden">
+          <label>✅ สร้างลิงก์สำเร็จ! คัดลอกลิงก์ด้านล่างเพื่อส่งให้ผู้อื่น:</label>
+          <div class="share-url-row">
+            <input type="text" id="share-result-url" readonly />
+            <button type="button" class="btn btn-primary" id="copy-share-url-btn">📋 คัดลอก</button>
+            <button type="button" class="btn btn-secondary" id="qr-share-url-btn" title="แสดง QR Code สำหรับสแกนด้วยมือถือ">📱 QR</button>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="cancel-share-modal-btn">ปิดหน้าต่าง</button>
+          <button type="submit" class="btn btn-primary" id="create-share-submit-btn">🔗 สร้างลิงก์แชร์</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: CREATE / EDIT USER (ADMIN - PHASE 3) ================= -->
+  <div id="user-modal" class="modal-backdrop hidden">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 id="user-modal-title">➕ เพิ่มบัญชีผู้ใช้ใหม่</h3>
+        <button class="btn-close" id="close-user-modal-btn">✕</button>
+      </div>
+      <form id="user-form" class="modal-body">
+        <div class="form-group">
+          <label for="user-form-username">ชื่อผู้ใช้ (Username ภาษาอังกฤษ/ตัวเลข):</label>
+          <input type="text" id="user-form-username" required placeholder="เช่น alice, bob" />
+        </div>
+        <div class="form-group">
+          <label id="user-form-password-label" for="user-form-password">รหัสผ่าน (อย่างน้อย 4 ตัวอักษร):</label>
+          <input type="password" id="user-form-password" placeholder="••••••••" />
+        </div>
+        <div class="form-group">
+          <label for="user-form-role">ระดับสิทธิ์ (Role):</label>
+          <select id="user-form-role" class="folder-select">
+            <option value="user">User ทั่วไป (แยกโฟลเดอร์ส่วนตัว /Users/{username})</option>
+            <option value="admin">Admin ผู้ดูแลระบบ (เข้าถึงทุกโฟลเดอร์และจัดการระบบ)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="user-form-quota">💾 โควตาพื้นที่สูงสุด (GB) — ใส่ 0 หากไม่จำกัด:</label>
+          <input type="number" id="user-form-quota" min="0" step="0.5" value="10" required />
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="cancel-user-modal-btn">ยกเลิก</button>
+          <button type="submit" class="btn btn-primary">บันทึกข้อมูลผู้ใช้</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: CHANGE PASSWORD ================= -->
+  <div id="password-modal" class="modal-backdrop hidden">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3>🔑 เปลี่ยนรหัสผ่านบัญชีของคุณ</h3>
+        <button class="btn-close" id="close-password-btn">✕</button>
+      </div>
+      <form id="password-form" class="modal-body">
+        <div class="form-group">
+          <label for="current-password">รหัสผ่านปัจจุบัน</label>
+          <input type="password" id="current-password" required />
+        </div>
+        <div class="form-group">
+          <label for="new-password">รหัสผ่านใหม่ (อย่างน้อย 4 ตัวอักษร)</label>
+          <input type="password" id="new-password" required minlength="4" />
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="cancel-password-btn">ยกเลิก</button>
+          <button type="submit" class="btn btn-primary">บันทึกรหัสผ่านใหม่</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: COLOR TAGS & FILE NOTES (PHASE 6) ================= -->
+  <div id="tag-modal" class="modal-backdrop hidden">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 id="tag-modal-title">🏷️ ติดป้ายกำกับสี & โน้ตประจำไฟล์</h3>
+        <button class="btn-close" id="close-tag-modal-btn">✕</button>
+      </div>
+      <form id="tag-form" class="modal-body">
+        <div class="form-group">
+          <label for="tag-color-select">เลือกป้ายกำกับสี (Color Tag):</label>
+          <select id="tag-color-select" class="folder-select">
+            <option value="none">⚪ ไม่ติดป้ายสี (None)</option>
+            <option value="red">🔴 สีแดง — ด่วน / สำคัญมาก</option>
+            <option value="green">🟢 สีเขียว — เสร็จสมบูรณ์ / อนุมัติแล้ว</option>
+            <option value="blue">🔵 สีน้ำเงิน — งานโปรเจกต์ / เอกสารอ้างอิง</option>
+            <option value="yellow">🟡 สีเหลือง — รอตรวจสอบ / กำลังดำเนินการ</option>
+            <option value="purple">🟣 สีม่วง — ส่วนตัว / เก็บถาวร</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="tag-note-input">📝 บันทึกช่วยจำประจำไฟล์ (Note):</label>
+          <input
+            type="text"
+            id="tag-note-input"
+            placeholder="เช่น สัญญาฉบับสมบูรณ์ปี 2026..."
+          />
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="cancel-tag-modal-btn">ยกเลิก</button>
+          <button type="submit" class="btn btn-primary">💾 บันทึกป้ายกำกับ</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: AES-256-GCM FILE VAULT ENCRYPT / DECRYPT (PHASE 6) ================= -->
+  <div id="vault-modal" class="modal-backdrop hidden">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 id="vault-modal-title">🔐 เข้ารหัสไฟล์ลับ (AES-256-GCM Vault)</h3>
+        <button class="btn-close" id="close-vault-modal-btn">✕</button>
+      </div>
+      <form id="vault-form" class="modal-body">
+        <p id="vault-modal-desc" style="font-size:13px;color:var(--text-secondary);margin-bottom:14px;">
+          ระบบจะเข้ารหัสไฟล์ด้วยอัลกอริทึม <strong>AES-256-GCM</strong> กลายเป็นไฟล์ <code>.vault</code> ซึ่งไม่สามารถเปิดอ่านได้หากไม่มีรหัสผ่านนี้
+        </p>
+        <div class="form-group">
+          <label for="vault-password-input">🔑 รหัสผ่านสำหรับเข้ารหัส / ถอดรหัสไฟล์:</label>
+          <input
+            type="password"
+            id="vault-password-input"
+            placeholder="กรอกรหัสผ่านอย่างน้อย 4 ตัวอักษร..."
+            required
+            minlength="4"
+          />
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="cancel-vault-modal-btn">ยกเลิก</button>
+          <button type="submit" class="btn btn-primary" id="submit-vault-btn">🔐 ดำเนินการ</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: CREATE FILE DROP REQUEST LINK (PHASE 6) ================= -->
+  <div id="file-drop-modal" class="modal-backdrop hidden">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 id="file-drop-modal-title">📥 สร้างลิงก์รับฝากไฟล์ (File Drop Request)</h3>
+        <button class="btn-close" id="close-file-drop-btn">✕</button>
+      </div>
+      <form id="file-drop-form" class="modal-body">
+        <div class="form-group">
+          <label for="file-drop-folder-select">📂 โฟลเดอร์ปลายทางที่จะรับไฟล์เข้า:</label>
+          <select id="file-drop-folder-select" class="folder-select" required></select>
+        </div>
+        <div class="form-group">
+          <label for="file-drop-title-input">🏷️ หัวข้อหน้าเว็บรับไฟล์ (แสดงให้ผู้ส่งเห็น):</label>
+          <input
+            type="text"
+            id="file-drop-title-input"
+            placeholder="เช่น ส่งไฟล์งานโปรเจกต์ / ส่งรูปถ่ายทริป..."
+          />
+        </div>
+        <div class="form-group">
+          <label for="file-drop-password-input">🔒 ตั้งรหัสผ่านก่อนส่งไฟล์ (เว้นว่างไว้หากไม่ต้องการ):</label>
+          <input
+            type="password"
+            id="file-drop-password-input"
+            placeholder="ไม่ต้องกรอกหากเปิดให้ส่งได้ทันที..."
+          />
+        </div>
+        <div class="form-group">
+          <label for="file-drop-expires-select">⏳ อายุของลิงก์รับฝากไฟล์:</label>
+          <select id="file-drop-expires-select" class="folder-select">
+            <option value="0">ไม่หมดอายุ (Never Expire)</option>
+            <option value="24" selected>24 ชั่วโมง (1 วัน)</option>
+            <option value="168">7 วัน</option>
+            <option value="720">30 วัน</option>
+          </select>
+        </div>
+
+        <div id="file-drop-result-box" class="share-result-box hidden">
+          <label>✅ สร้างลิงก์รับฝากไฟล์สำเร็จ! ส่งลิงก์นี้ให้ผู้อื่นอัปโหลดไฟล์เข้ามาได้เลย:</label>
+          <div class="share-url-row">
+            <input type="text" id="file-drop-result-url" readonly />
+            <button type="button" class="btn btn-primary" id="copy-file-drop-url-btn">📋 คัดลอก</button>
+            <button type="button" class="btn btn-secondary" id="qr-file-drop-url-btn" title="แสดง QR Code สำหรับสแกนส่งไฟล์ด้วยมือถือ">📱 QR</button>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="cancel-file-drop-btn">ปิดหน้าต่าง</button>
+          <button type="submit" class="btn btn-primary" id="submit-file-drop-btn">📥 สร้างลิงก์รับฝากไฟล์</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: SMART BATCH RENAME (PHASE 7) ================= -->
+  <div id="batch-rename-modal" class="modal-backdrop hidden">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-header">
+        <h3>✏️ เปลี่ยนชื่อไฟล์ชุดละหลายรายการ (Smart Batch Rename)</h3>
+        <button class="btn-close" id="close-batch-rename-btn">✕</button>
+      </div>
+      <form id="batch-rename-form" class="modal-body">
+        <div class="form-group">
+          <label for="batch-rename-mode">รูปแบบการเปลี่ยนชื่อ (Rename Mode):</label>
+          <select id="batch-rename-mode" class="folder-select">
+            <option value="pattern">🔢 รันเลขลำดับอัตโนมัติ เช่น Trip-{n} → Trip-001.jpg, Trip-002.jpg</option>
+            <option value="prefix_suffix">➕ เติมคำนำหน้า (Prefix) และ/หรือ คำต่อท้าย (Suffix)</option>
+            <option value="replace">🔍 ค้นหาและแทนที่คำในชื่อไฟล์ (Find & Replace)</option>
+          </select>
+        </div>
+
+        <div id="batch-mode-pattern-box">
+          <div style="display:grid;grid-template-columns:2fr 1fr;gap:12px;">
+            <div class="form-group">
+              <label for="batch-pattern-input">รูปแบบชื่อใหม่ (ใช้ `{n}` แทนตัวเลขลำดับ):</label>
+              <input type="text" id="batch-pattern-input" value="File-{n}" placeholder="เช่น Japan-Trip-{n}" />
+            </div>
+            <div class="form-group">
+              <label for="batch-start-num">เริ่มนับเลขจาก:</label>
+              <input type="number" id="batch-start-num" min="1" value="1" />
+            </div>
+          </div>
+        </div>
+
+        <div id="batch-mode-prefix-box" class="hidden">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div class="form-group">
+              <label for="batch-prefix-input">คำนำหน้าชื่อไฟล์ (Prefix):</label>
+              <input type="text" id="batch-prefix-input" placeholder="เช่น [2026]_" />
+            </div>
+            <div class="form-group">
+              <label for="batch-suffix-input">คำต่อท้ายก่อนนามสกุลไฟล์ (Suffix):</label>
+              <input type="text" id="batch-suffix-input" placeholder="เช่น _final" />
+            </div>
+          </div>
+        </div>
+
+        <div id="batch-mode-replace-box" class="hidden">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div class="form-group">
+              <label for="batch-find-input">คำที่ต้องการค้นหา (Find):</label>
+              <input type="text" id="batch-find-input" placeholder="คำเดิมในชื่อไฟล์..." />
+            </div>
+            <div class="form-group">
+              <label for="batch-replace-input">แทนที่ด้วยคำว่า (Replace with):</label>
+              <input type="text" id="batch-replace-input" placeholder="คำใหม่..." />
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top:8px;">
+          <label style="font-size:12.5px;color:var(--text-secondary);">👁️ ตัวอย่างชื่อไฟล์ใหม่ที่จะได้ (Live Preview):</label>
+          <div id="batch-rename-preview" class="files-list" style="max-height:190px;overflow:auto;margin-top:6px;"></div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="cancel-batch-rename-btn">ยกเลิก</button>
+          <button type="submit" class="btn btn-primary">💾 เปลี่ยนชื่อทั้งหมดทันที</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: FILE CHECKSUM & INTEGRITY VERIFIER (PHASE 7) ================= -->
+  <div id="checksum-modal" class="modal-backdrop hidden">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-header">
+        <h3 id="checksum-modal-title">#️⃣ ตรวจสอบค่า Hash & ความถูกต้องของไฟล์ (Checksum Verifier)</h3>
+        <button class="btn-close" id="close-checksum-btn">✕</button>
+      </div>
+      <div class="modal-body">
+        <div id="checksum-loading" style="padding:18px;text-align:center;color:var(--text-secondary);">
+          ⏳ กำลังสแกนและคำนวณค่า MD5, SHA-1 และ SHA-256...
+        </div>
+        <div id="checksum-content" class="hidden">
+          <div class="form-group">
+            <label>🔹 MD5:</label>
+            <div class="share-url-row">
+              <input type="text" id="hash-md5-val" readonly />
+              <button type="button" class="btn btn-secondary btn-sm btn-copy-hash" data-target="hash-md5-val">📋 คัดลอก</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>🔸 SHA-1:</label>
+            <div class="share-url-row">
+              <input type="text" id="hash-sha1-val" readonly />
+              <button type="button" class="btn btn-secondary btn-sm btn-copy-hash" data-target="hash-sha1-val">📋 คัดลอก</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>🛡️ SHA-256 (มาตรฐานความปลอดภัยสูงสุด):</label>
+            <div class="share-url-row">
+              <input type="text" id="hash-sha256-val" readonly />
+              <button type="button" class="btn btn-primary btn-sm btn-copy-hash" data-target="hash-sha256-val">📋 คัดลอก</button>
+            </div>
+          </div>
+
+          <hr class="sys-divider" style="margin:14px 0;" />
+          <div class="form-group">
+            <label for="checksum-verify-input">🔍 วางค่า Hash ที่ต้องการเปรียบเทียบ (Compare & Verify Hash):</label>
+            <input
+              type="text"
+              id="checksum-verify-input"
+              placeholder="วางค่า MD5, SHA-1 หรือ SHA-256 ที่นี่เพื่อตรวจสอบว่าตรงกันหรือไม่..."
+            />
+          </div>
+          <div id="checksum-verify-result" style="font-size:13.5px;font-weight:600;margin-top:6px;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: SEND TO NAS USER INBOX (PHASE 7) ================= -->
+  <div id="send-inbox-modal" class="modal-backdrop hidden">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 id="send-inbox-title">📨 ส่งไฟล์ให้สมาชิกคนอื่นใน NAS (Send to User Inbox)</h3>
+        <button class="btn-close" id="close-send-inbox-btn">✕</button>
+      </div>
+      <form id="send-inbox-form" class="modal-body">
+        <div class="form-group">
+          <label for="inbox-recipient-select">👤 เลือกบัญชีผู้รับใน NAS (ไฟล์จะถูกส่งเข้าโฟลเดอร์ `/Inbox` ของผู้รับ):</label>
+          <select id="inbox-recipient-select" class="folder-select" required></select>
+        </div>
+        <div class="form-group">
+          <label for="inbox-message-input">💬 ข้อความแนบถึงผู้รับ (ไม่บังคับ):</label>
+          <textarea
+            id="inbox-message-input"
+            class="code-editor"
+            style="min-height:90px;"
+            placeholder="เช่น ส่งไฟล์เอกสารสรุปการประชุมมาให้ครับ..."
+          ></textarea>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="cancel-send-inbox-btn">ยกเลิก</button>
+          <button type="submit" class="btn btn-primary">📨 ส่งไฟล์เข้า Inbox ทันที</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: BEAUTIFUL DELETE / ACTION CONFIRMATION DIALOG ================= -->
+  <div id="confirm-modal" class="modal-backdrop hidden">
+    <div class="modal-dialog confirm-dialog">
+      <div class="modal-header">
+        <h3 id="confirm-modal-title">🗑️ ยืนยันการลบรายการ</h3>
+        <button class="btn-close" id="close-confirm-modal-btn">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="confirm-hero">
+          <div class="confirm-icon-circle" id="confirm-modal-icon">🗑️</div>
+          <div class="confirm-text-group">
+            <h4 id="confirm-modal-heading">คุณต้องการลบไฟล์นี้ใช่หรือไม่?</h4>
+            <p id="confirm-modal-desc">รายการที่ถูกลบจะถูกย้ายไปเก็บพักไว้ในถังขยะ (Recycle Bin) และสามารถกู้คืนภายหลังได้</p>
+          </div>
+        </div>
+        <div id="confirm-modal-target-box" class="watt-alert-box confirm-target-box"></div>
+        <div class="modal-footer" style="margin-top:20px;">
+          <button type="button" class="btn btn-secondary" id="cancel-confirm-modal-btn">ยกเลิก (Cancel)</button>
+          <button type="button" class="btn btn-danger" id="accept-confirm-modal-btn">🗑️ ยืนยันการลบ</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: BUILT-IN SVG QR CODE SCANNER (PHASE 8) ================= -->
+  <div id="qr-modal" class="modal-backdrop hidden">
+    <div class="modal-dialog" style="max-width:400px;">
+      <div class="modal-header">
+        <h3 id="qr-modal-title">📱 สแกน QR Code ด้วยกล้องมือถือ</h3>
+        <button class="btn-close" id="close-qr-modal-btn">✕</button>
+      </div>
+      <div class="modal-body" style="text-align:center;">
+        <p id="qr-modal-subtitle" style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;">
+          เปิดกล้องมือถือหรือแท็บเล็ตในวง Wi-Fi เดียวกันเพื่อสแกนเข้าใช้งานทันที
+        </p>
+        <div id="qr-svg-container" style="background:#ffffff;padding:16px;border-radius:16px;display:inline-block;margin-bottom:14px;box-shadow:0 8px 24px rgba(0,0,0,0.25);"></div>
+        <div class="share-url-row">
+          <input type="text" id="qr-url-input" readonly />
+          <button type="button" class="btn btn-primary btn-sm" id="copy-qr-url-btn">📋 คัดลอก</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: BUILT-IN IMAGE STUDIO & CONVERTER (PHASE 8) ================= -->
+  <div id="image-studio-modal" class="modal-backdrop hidden">
+    <div class="modal-dialog modal-lg" style="max-width:680px;">
+      <div class="modal-header">
+        <h3 id="image-studio-title">🎨 สตูดิโอแต่งและแปลงไฟล์รูปภาพ (NAS Image Studio)</h3>
+        <button class="btn-close" id="close-image-studio-btn">✕</button>
+      </div>
+      <form id="image-studio-form" class="modal-body">
+        <div style="display:grid;grid-template-columns:220px 1fr;gap:20px;align-items:start;">
+          <div>
+            <div class="file-thumb-box" style="height:170px;">
+              <img id="image-studio-preview" src="" alt="Preview" />
+            </div>
+            <div id="image-studio-meta" class="sys-stats-list" style="font-size:12px;"></div>
+          </div>
+
+          <div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <div class="form-group">
+                <label for="img-rotate-select">🔄 หมุนภาพ (Rotate):</label>
+                <select id="img-rotate-select" class="folder-select">
+                  <option value="0">ไม่หมุนภาพ (0°)</option>
+                  <option value="90">หมุนขวา 90° ตามเข็มนาฬิกา</option>
+                  <option value="180">กลับหัว 180°</option>
+                  <option value="270">หมุนซ้าย 270° ทวนเข็มนาฬิกา</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="img-flip-select">↔️ พลิกกลับด้านภาพ (Flip):</label>
+                <select id="img-flip-select" class="folder-select">
+                  <option value="none">ไม่พลิกภาพ</option>
+                  <option value="horizontal">↔️ พลิกซ้าย-ขวา (Horizontal)</option>
+                  <option value="vertical">↕️ พลิกบน-ล่าง (Vertical)</option>
+                </select>
+              </div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <div class="form-group">
+                <label for="img-resize-select">📐 ย่อขนาดภาพสูงสุด (Max Dimension):</label>
+                <select id="img-resize-select" class="folder-select">
+                  <option value="0">คงขนาดความละเอียดเดิม</option>
+                  <option value="2560">2560 px (QHD / 2K)</option>
+                  <option value="1920">1920 px (Full HD)</option>
+                  <option value="1280">1280 px (HD / ประหยัดพื้นที่)</option>
+                  <option value="800">800 px (สำหรับเว็บ / แชร์ไว)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="img-format-select">🖼️ แปลงนามสกุลไฟล์ภาพ (Convert Format):</label>
+                <select id="img-format-select" class="folder-select">
+                  <option value="keep">คงนามสกุลไฟล์เดิม</option>
+                  <option value="jpeg">แปลงเป็น .JPG (JPEG)</option>
+                  <option value="png">แปลงเป็น .PNG</option>
+                  <option value="tiff">แปลงเป็น .TIFF</option>
+                  <option value="bmp">แปลงเป็น .BMP</option>
+                  <option value="gif">แปลงเป็น .GIF</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-group" style="margin-top:4px;">
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;color:var(--text-primary);">
+                <input type="checkbox" id="img-save-copy-check" checked style="width:17px;height:17px;" />
+                บันทึกเป็นไฟล์ใหม่ (`_edited`) โดยไม่ทับไฟล์ต้นฉบับ (หากติ๊กออก ระบบจะสำรองเวอร์ชันเดิมไว้ให้อัตโนมัติ)
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="cancel-image-studio-btn">ยกเลิก</button>
+          <button type="submit" class="btn btn-primary" id="submit-image-studio-btn">✨ ประมวลผลและบันทึกรูปภาพ</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= PHASE 9: RIGHT-CLICK CONTEXT MENU ================= -->
+  <div id="file-context-menu" class="file-context-menu hidden" role="menu"></div>
+
+  <!-- ================= PHASE 9: MOBILE BOTTOM QUICK NAVIGATION ================= -->
+  <nav id="mobile-bottom-nav" class="mobile-bottom-nav">
+    <button type="button" class="mob-nav-btn active" data-mob-tab="files">
+      <span>📁</span>
+      <small>ไฟล์</small>
+    </button>
+    <button type="button" class="mob-nav-btn" data-mob-tab="gallery">
+      <span>📸</span>
+      <small>แกลเลอรี</small>
+    </button>
+    <button type="button" class="mob-nav-btn" data-mob-tab="clipboard">
+      <span>📋</span>
+      <small>คลิปบอร์ด</small>
+    </button>
+    <button type="button" class="mob-nav-btn" data-mob-tab="indexer">
+      <span>🔍</span>
+      <small>ค้นหา</small>
+    </button>
+    <button type="button" class="mob-nav-btn" data-mob-tab="system">
+      <span>📊</span>
+      <small>ระบบ</small>
+    </button>
+  </nav>
+
+  <script src="/app.js?v=31"></script>
+</body>
+</html>

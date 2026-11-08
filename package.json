@@ -1,0 +1,13 @@
+{
+  "name": "personal-nas-server",
+  "version": "1.0.0",
+  "description": "Personal NAS Server with Web File Explorer, Recycle Bin, Media Streaming, Multi-user Quota, Public Share, and System Hardware Monitor",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node --watch src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  }
+}
