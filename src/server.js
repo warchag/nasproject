@@ -143,9 +143,147 @@ function sendJson(res, statusCode, payload, extraHeaders = {}) {
     'Content-Type': 'application/json; charset=utf-8',
     'Content-Length': body.length,
     'Cache-Control': 'no-store',
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'SAMEORIGIN',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
     ...extraHeaders,
   });
   res.end(body);
+}
+
+// In-memory rate limiter for public password verifications (shares & file drops)
+const publicVerifyAttemptsMap = new Map();
+const PUBLIC_VERIFY_MAX_ATTEMPTS = 5;
+const PUBLIC_VERIFY_LOCK_MS = 15 * 60 * 1000; // 15 mins lock
+const PUBLIC_VERIFY_WINDOW_MS = 15 * 60 * 1000;
+
+function checkPublicVerifyLock(key) {
+  const now = Date.now();
+  const rec = publicVerifyAttemptsMap.get(key);
+  if (!rec) return { locked: false, remainingSeconds: 0 };
+  if (rec.lockedUntil && rec.lockedUntil > now) {
+    return {
+      locked: true,
+      remainingSeconds: Math.ceil((rec.lockedUntil - now) / 1000),
+    };
+  }
+  if (rec.lockedUntil && now >= rec.lockedUntil) {
+    publicVerifyAttemptsMap.delete(key);
+    return { locked: false, remainingSeconds: 0 };
+  }
+  if (now - rec.firstAttemptAt > PUBLIC_VERIFY_WINDOW_MS) {
+    publicVerifyAttemptsMap.delete(key);
+    return { locked: false, remainingSeconds: 0 };
+  }
+  return { locked: false, remainingSeconds: 0 };
+}
+
+function recordFailedPublicVerify(key) {
+  const now = Date.now();
+  let rec = publicVerifyAttemptsMap.get(key);
+  if (!rec || now - rec.firstAttemptAt > PUBLIC_VERIFY_WINDOW_MS) {
+    rec = { count: 1, firstAttemptAt: now, lockedUntil: 0 };
+  } else {
+    rec.count += 1;
+  }
+  if (rec.count >= PUBLIC_VERIFY_MAX_ATTEMPTS) {
+    rec.lockedUntil = now + PUBLIC_VERIFY_LOCK_MS;
+  }
+  publicVerifyAttemptsMap.set(key, rec);
+  return {
+    locked: rec.lockedUntil > now,
+    remainingSeconds: rec.lockedUntil > now ? Math.ceil((rec.lockedUntil - now) / 1000) : 0,
+    attempts: rec.count,
+    maxAttempts: PUBLIC_VERIFY_MAX_ATTEMPTS,
+  };
+}
+
+function clearPublicVerifyAttempts(key) {
+  publicVerifyAttemptsMap.delete(key);
+}
+
+// DNS Rebinding Defense: Host Header Validator
+function isAllowedHost(hostHeader) {
+  if (!hostHeader) return true;
+  let host = hostHeader.trim().toLowerCase();
+  if (host.startsWith('[')) {
+    const endBracket = host.indexOf(']');
+    if (endBracket !== -1) {
+      host = host.slice(1, endBracket);
+    }
+  } else {
+    host = host.split(':')[0].trim();
+  }
+
+  if (
+    host === 'localhost' ||
+    host === '127.0.0.1' ||
+    host === '::1' ||
+    host.endsWith('.local')
+  ) {
+    return true;
+  }
+
+  // Private IPv4 ranges
+  if (/^127\.\d+\.\d+\.\d+$/.test(host)) return true;
+  if (/^10\.\d+\.\d+\.\d+$/.test(host)) return true;
+  if (/^192\.168\.\d+\.\d+$/.test(host)) return true;
+  if (/^172\.(1[6-9]|2[0-9]|3[0-1])\.\d+\.\d+$/.test(host)) return true;
+  if (/^169\.254\.\d+\.\d+$/.test(host)) return true;
+
+  // IPv6 ULA or Link-Local
+  if (host.startsWith('fe80:') || host.startsWith('fc') || host.startsWith('fd')) {
+    return true;
+  }
+
+  // User-configured allowed hosts
+  if (process.env.ALLOWED_HOSTS) {
+    const custom = process.env.ALLOWED_HOSTS.split(',').map((h) => h.trim().toLowerCase());
+    if (custom.includes(host)) return true;
+  }
+
+  try {
+    const lans = getLanAddresses();
+    for (const lan of lans) {
+      if (lan.address && lan.address.toLowerCase() === host) return true;
+    }
+  } catch {
+    // Ignore network enumeration error
+  }
+
+  return false;
+}
+
+// CSRF Defense: Origin / Referer check against Host header for state-mutating requests
+function validateOriginOrReferer(req) {
+  const mutatingMethods = ['POST', 'PUT', 'DELETE', 'PATCH'];
+  if (!mutatingMethods.includes(req.method)) return true;
+
+  const hostHeader = (req.headers.host || '').toLowerCase();
+  const origin = req.headers.origin;
+  const referer = req.headers.referer;
+
+  if (origin) {
+    try {
+      const parsedOrigin = new URL(origin);
+      if (parsedOrigin.host.toLowerCase() !== hostHeader) {
+        return false;
+      }
+    } catch {
+      return false;
+    }
+  } else if (referer) {
+    try {
+      const parsedReferer = new URL(referer);
+      if (parsedReferer.host.toLowerCase() !== hostHeader) {
+        return false;
+      }
+    } catch {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 function readJsonBody(req, maxBytes = 2 * 1024 * 1024) {
@@ -208,6 +346,10 @@ function serveStaticFile(req, res, pathname) {
     'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
     Pragma: 'no-cache',
     Expires: '0',
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'SAMEORIGIN',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
+    'Content-Security-Policy': "frame-ancestors 'self';",
   });
   fs.createReadStream(safeStatic).pipe(res);
 }
@@ -471,6 +613,8 @@ async function handleThumbnailRequest(req, res, urlObj, user) {
     res.writeHead(200, {
       'Content-Type': 'image/svg+xml; charset=utf-8',
       'Cache-Control': 'public, max-age=3600',
+      'X-Content-Type-Options': 'nosniff',
+      'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; sandbox",
     });
     res.end(thumb.svgContent);
     return;
@@ -555,6 +699,12 @@ function validateShareLinkState(link) {
 
 const server = http.createServer(async (req, res) => {
   try {
+    // DNS Rebinding Defense: reject unrecognized external hosts
+    if (!isAllowedHost(req.headers.host)) {
+      sendJson(res, 400, { error: 'คำขอถูกปฏิเสธ: Host header ไม่ถูกต้อง (DNS Rebinding Defense)' });
+      return;
+    }
+
     const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
     const pathname = urlObj.pathname;
     const method = req.method;
@@ -568,6 +718,12 @@ const server = http.createServer(async (req, res) => {
     // Serve static frontend files (including /s/:token public share page)
     if (!pathname.startsWith('/api/')) {
       serveStaticFile(req, res, pathname);
+      return;
+    }
+
+    // CSRF Defense: check origin/referer on state-mutating API calls
+    if (!validateOriginOrReferer(req)) {
+      sendJson(res, 403, { error: 'คำขอข้ามโดเมนถูกปฏิเสธ (CSRF Protection)' });
       return;
     }
 
@@ -613,12 +769,30 @@ const server = http.createServer(async (req, res) => {
 
       // POST /api/public/share/:token/verify -> Check Password
       if (action === 'verify' && method === 'POST') {
+        const clientIp = getClientIp(req);
+        const lockKey = `${clientIp}:share:${token}`;
+        const lock = checkPublicVerifyLock(lockKey);
+        if (lock.locked) {
+          sendJson(res, 429, {
+            error: `คุณใส่รหัสผ่านผิดเกินกำหนด (${PUBLIC_VERIFY_MAX_ATTEMPTS} ครั้ง) กรุณารออีก ${lock.remainingSeconds} วินาที`,
+            locked: true,
+            remainingSeconds: lock.remainingSeconds,
+          });
+          return;
+        }
+
         const body = await readJsonBody(req);
         const password = String(body.password || '');
         if (link.password_hash && !verifyPassword(password, link.password_hash)) {
-          sendJson(res, 401, { error: 'รหัสผ่านสำหรับเปิดลิงก์ไม่ถูกต้อง' });
+          const fail = recordFailedPublicVerify(lockKey);
+          sendJson(res, 401, {
+            error: `รหัสผ่านสำหรับเปิดลิงก์ไม่ถูกต้อง (พยายามผิด ${fail.attempts}/${fail.maxAttempts} ครั้ง)`,
+            locked: fail.locked,
+            remainingSeconds: fail.remainingSeconds,
+          });
           return;
         }
+        clearPublicVerifyAttempts(lockKey);
         sendJson(res, 200, { verified: true });
         return;
       }
@@ -628,9 +802,28 @@ const server = http.createServer(async (req, res) => {
         const password = urlObj.searchParams.get('password') || '';
         const inline = urlObj.searchParams.get('inline') === '1';
 
-        if (link.password_hash && !verifyPassword(password, link.password_hash)) {
-          sendJson(res, 401, { error: 'กรุณาระบุรหัสผ่านที่ถูกต้องเพื่อดาวน์โหลดไฟล์' });
-          return;
+        if (link.password_hash) {
+          const clientIp = getClientIp(req);
+          const lockKey = `${clientIp}:share:${token}`;
+          const lock = checkPublicVerifyLock(lockKey);
+          if (lock.locked) {
+            sendJson(res, 429, {
+              error: `คุณใส่รหัสผ่านผิดเกินกำหนด (${PUBLIC_VERIFY_MAX_ATTEMPTS} ครั้ง) กรุณารออีก ${lock.remainingSeconds} วินาที`,
+              locked: true,
+              remainingSeconds: lock.remainingSeconds,
+            });
+            return;
+          }
+          if (!verifyPassword(password, link.password_hash)) {
+            const fail = recordFailedPublicVerify(lockKey);
+            sendJson(res, 401, {
+              error: `กรุณาระบุรหัสผ่านที่ถูกต้องเพื่อดาวน์โหลดไฟล์ (พยายามผิด ${fail.attempts}/${fail.maxAttempts} ครั้ง)`,
+              locked: fail.locked,
+              remainingSeconds: fail.remainingSeconds,
+            });
+            return;
+          }
+          clearPublicVerifyAttempts(lockKey);
         }
 
         // Only increment download count on initial download (not mid-stream HTTP range requests)
@@ -687,12 +880,30 @@ const server = http.createServer(async (req, res) => {
       }
 
       if (action === 'verify' && method === 'POST') {
+        const clientIp = getClientIp(req);
+        const lockKey = `${clientIp}:drop:${token}`;
+        const lock = checkPublicVerifyLock(lockKey);
+        if (lock.locked) {
+          sendJson(res, 429, {
+            error: `คุณใส่รหัสผ่านผิดเกินกำหนด (${PUBLIC_VERIFY_MAX_ATTEMPTS} ครั้ง) กรุณารออีก ${lock.remainingSeconds} วินาที`,
+            locked: true,
+            remainingSeconds: lock.remainingSeconds,
+          });
+          return;
+        }
+
         const body = await readJsonBody(req);
         const password = String(body.password || '');
         if (reqRec.password_hash && !verifyPassword(password, reqRec.password_hash)) {
-          sendJson(res, 401, { error: 'รหัสผ่านสำหรับส่งไฟล์ไม่ถูกต้อง' });
+          const fail = recordFailedPublicVerify(lockKey);
+          sendJson(res, 401, {
+            error: `รหัสผ่านสำหรับส่งไฟล์ไม่ถูกต้อง (พยายามผิด ${fail.attempts}/${fail.maxAttempts} ครั้ง)`,
+            locked: fail.locked,
+            remainingSeconds: fail.remainingSeconds,
+          });
           return;
         }
+        clearPublicVerifyAttempts(lockKey);
         sendJson(res, 200, { verified: true });
         return;
       }
@@ -702,9 +913,28 @@ const server = http.createServer(async (req, res) => {
         const filename = urlObj.searchParams.get('filename') || '';
         const sender = urlObj.searchParams.get('sender') || 'Guest';
 
-        if (reqRec.password_hash && !verifyPassword(password, reqRec.password_hash)) {
-          sendJson(res, 401, { error: 'รหัสผ่านสำหรับส่งไฟล์ไม่ถูกต้อง' });
-          return;
+        if (reqRec.password_hash) {
+          const clientIp = getClientIp(req);
+          const lockKey = `${clientIp}:drop:${token}`;
+          const lock = checkPublicVerifyLock(lockKey);
+          if (lock.locked) {
+            sendJson(res, 429, {
+              error: `คุณใส่รหัสผ่านผิดเกินกำหนด (${PUBLIC_VERIFY_MAX_ATTEMPTS} ครั้ง) กรุณารออีก ${lock.remainingSeconds} วินาที`,
+              locked: true,
+              remainingSeconds: lock.remainingSeconds,
+            });
+            return;
+          }
+          if (!verifyPassword(password, reqRec.password_hash)) {
+            const fail = recordFailedPublicVerify(lockKey);
+            sendJson(res, 401, {
+              error: `รหัสผ่านสำหรับส่งไฟล์ไม่ถูกต้อง (พยายามผิด ${fail.attempts}/${fail.maxAttempts} ครั้ง)`,
+              locked: fail.locked,
+              remainingSeconds: fail.remainingSeconds,
+            });
+            return;
+          }
+          clearPublicVerifyAttempts(lockKey);
         }
 
         logAuditEvent(

@@ -70,6 +70,10 @@ function extractZipBufferToDir(zipFilePath, destDirFull) {
 
     let ptr = 0;
     let extractedFiles = 0;
+    let totalExtractedBytes = 0;
+    const MAX_SINGLE_FILE_BYTES = 1024 * 1024 * 1024; // 1 GB max per extracted file
+    const MAX_TOTAL_EXTRACTED_BYTES = 4 * 1024 * 1024 * 1024; // 4 GB max total extracted
+    const MAX_COMPRESSION_RATIO = 50; // Zip Bomb ratio threshold
     const destWithSep = destDirFull.endsWith(path.sep) ? destDirFull : destDirFull + path.sep;
     const localHeaderBuf = Buffer.allocUnsafe(30);
 
@@ -78,9 +82,11 @@ function extractZipBufferToDir(zipFilePath, destDirFull) {
 
       const compressionMethod = cdBuf.readUInt16LE(ptr + 10);
       const compressedSize = cdBuf.readUInt32LE(ptr + 20);
+      const uncompressedSize = cdBuf.readUInt32LE(ptr + 24);
       const nameLen = cdBuf.readUInt16LE(ptr + 28);
       const extraLen = cdBuf.readUInt16LE(ptr + 30);
       const commentLen = cdBuf.readUInt16LE(ptr + 32);
+      const externalAttr = cdBuf.readUInt32LE(ptr + 38);
       const localHeaderOffset = cdBuf.readUInt32LE(ptr + 42);
 
       const rawEntryName = cdBuf.subarray(ptr + 46, ptr + 46 + nameLen).toString('utf8');
@@ -91,6 +97,12 @@ function extractZipBufferToDir(zipFilePath, destDirFull) {
         continue;
       }
 
+      // Security: Check for POSIX symlink attribute (0120000)
+      const isSymlink = ((externalAttr >>> 16) & 0o170000) === 0o120000;
+      if (isSymlink) {
+        throw new Error('ไม่อนุญาตให้แตกไฟล์ที่มี Symbolic Link ภายในไฟล์ Zip เพื่อความปลอดภัย');
+      }
+
       const normalizedEntry = rawEntryName.replace(/\\/g, '/').replace(/^\/+/, '');
       if (!normalizedEntry) continue;
 
@@ -98,6 +110,22 @@ function extractZipBufferToDir(zipFilePath, destDirFull) {
       const targetFull = path.resolve(destDirFull, normalizedEntry);
       if (targetFull !== destDirFull && !targetFull.startsWith(destWithSep)) {
         throw new Error('ตรวจพบความพยายามแตกไฟล์ออกนอกโฟลเดอร์ (Zip-Slip Blocked)');
+      }
+
+      // Security: Zip Bomb Protection (Single file > 1GB, Total > 4GB, or extreme compression ratio)
+      if (uncompressedSize > MAX_SINGLE_FILE_BYTES) {
+        throw new Error(`ไฟล์ ${path.basename(normalizedEntry)} มีขนาดใหญ่เกินขีดจำกัดความปลอดภัย (จำกัดสูงสุด 1 GB ต่อไฟล์)`);
+      }
+      totalExtractedBytes += uncompressedSize;
+      if (totalExtractedBytes > MAX_TOTAL_EXTRACTED_BYTES) {
+        throw new Error('ขนาดรวมหลังแตกไฟล์เกินขีดจำกัดความปลอดภัยของระบบ (จำกัดสูงสุด 4 GB ต่อชุด)');
+      }
+      if (
+        compressedSize > 0 &&
+        uncompressedSize / compressedSize > MAX_COMPRESSION_RATIO &&
+        uncompressedSize > 10 * 1024 * 1024
+      ) {
+        throw new Error('ตรวจพบไฟล์ที่มีอัตราบีบอัดสูงผิดปกติที่อาจทำให้ระบบล่ม (Zip Bomb Shield)');
       }
 
       if (rawEntryName.endsWith('/')) {
@@ -176,7 +204,7 @@ function extractArchiveOnNas(user, archiveClientPath) {
     if (lower.endsWith('.zip')) {
       extractedCount = extractZipBufferToDir(archiveFull, destDirFull);
     } else if (lower.endsWith('.tar') || lower.endsWith('.tar.gz') || lower.endsWith('.tgz')) {
-      execFileSync('/usr/bin/tar', ['-xf', archiveFull, '-C', destDirFull], {
+      execFileSync('/usr/bin/tar', ['--no-same-owner', '--no-same-permissions', '-xf', archiveFull, '-C', destDirFull], {
         stdio: 'ignore',
         timeout: 30000,
       });
@@ -392,6 +420,13 @@ function encryptFileVault(user, clientPath, password) {
     throw err;
   }
 
+  const stat = fs.statSync(fullPath);
+  if (stat.size > 500 * 1024 * 1024) {
+    const err = new Error('ไฟล์มีขนาดเกิน 500MB ไม่สามารถเข้ารหัสใน Vault ได้ (Memory Protection)');
+    err.statusCode = 413;
+    throw err;
+  }
+
   const plaintext = fs.readFileSync(fullPath);
   const salt = crypto.randomBytes(16);
   const iv = crypto.randomBytes(12);
@@ -431,6 +466,13 @@ function decryptFileVault(user, clientPath, password) {
   if (!fs.existsSync(fullPath) || fs.statSync(fullPath).isDirectory()) {
     const err = new Error('ไม่พบไฟล์ .vault ที่ต้องการถอดรหัส');
     err.statusCode = 404;
+    throw err;
+  }
+
+  const stat = fs.statSync(fullPath);
+  if (stat.size > 550 * 1024 * 1024) {
+    const err = new Error('ไฟล์มีขนาดเกิน 550MB ไม่สามารถถอดรหัสใน Vault ได้ (Memory Protection)');
+    err.statusCode = 413;
     throw err;
   }
 

@@ -3,6 +3,8 @@ const path = require('node:path');
 const http = require('node:http');
 const https = require('node:https');
 const crypto = require('node:crypto');
+const dns = require('node:dns');
+const net = require('node:net');
 const {
   insertAuditLog,
   listAuditLogs,
@@ -41,9 +43,14 @@ const WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 const LOCKOUT_MS = 15 * 60 * 1000; // 15 minutes
 
 function getClientIp(req) {
-  const xff = req.headers['x-forwarded-for'];
-  if (xff) {
-    return String(xff).split(',')[0].trim();
+  // Security: Only trust X-Forwarded-For if explicitly configured behind a trusted reverse proxy
+  const trustProxy = process.env.TRUST_PROXY === '1' || process.env.TRUST_PROXY === 'true';
+  if (trustProxy) {
+    const xff = req.headers['x-forwarded-for'];
+    if (xff) {
+      const first = String(xff).split(',')[0].trim();
+      if (first) return first.replace(/^::ffff:/, '');
+    }
   }
   const raw = req.socket?.remoteAddress || '127.0.0.1';
   return raw === '::1' ? '127.0.0.1' : raw.replace(/^::ffff:/, '');
@@ -289,26 +296,111 @@ function listMediaGalleryItems(user, filterType = 'all') {
   return items;
 }
 
-// ================= 4. REMOTE URL DOWNLOADER (CLOUD FETCH) =================
-function fetchStreamWithRedirects(targetUrl, maxRedirects = 5) {
-  return new Promise((resolve, reject) => {
-    let parsedUrl;
-    try {
-      parsedUrl = new URL(targetUrl);
-    } catch {
-      reject(Object.assign(new Error('รูปแบบ URL ไม่ถูกต้อง'), { statusCode: 400 }));
-      return;
-    }
+// ================= 4. REMOTE URL DOWNLOADER (CLOUD FETCH WITH SSRF SHIELD) =================
+function isPrivateOrInternalIp(ipStr) {
+  if (!ipStr) return true;
+  let ip = String(ipStr).trim();
+  if (ip.startsWith('::ffff:')) {
+    ip = ip.slice(7);
+  }
 
-    if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
-      reject(
-        Object.assign(new Error('รองรับเฉพาะลิงก์ http:// และ https:// เท่านั้น'), {
-          statusCode: 400,
-        })
+  const ipv4Match = ip.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (ipv4Match) {
+    const [_, o1, o2, o3, o4] = ipv4Match.map(Number);
+    if ([o1, o2, o3, o4].some((o) => o < 0 || o > 255)) return true;
+
+    if (o1 === 0) return true; // 0.0.0.0/8
+    if (o1 === 127) return true; // 127.0.0.0/8 Loopback
+    if (o1 === 10) return true; // 10.0.0.0/8 Private
+    if (o1 === 172 && o2 >= 16 && o2 <= 31) return true; // 172.16.0.0/12 Private
+    if (o1 === 192 && o2 === 168) return true; // 192.168.0.0/16 Private
+    if (o1 === 169 && o2 === 254) return true; // 169.254.0.0/16 Link-local
+    if (o1 === 100 && o2 >= 64 && o2 <= 127) return true; // 100.64.0.0/10 Carrier NAT
+    if (o1 >= 224) return true; // Multicast / Reserved
+
+    return false;
+  }
+
+  const lower = ip.toLowerCase();
+  if (lower === '::1' || lower === '::' || lower === '0:0:0:0:0:0:0:1' || lower === '0:0:0:0:0:0:0:0') {
+    return true;
+  }
+  if (lower.startsWith('fe8') || lower.startsWith('fe9') || lower.startsWith('fea') || lower.startsWith('feb')) {
+    return true; // fe80::/10 Link-local
+  }
+  if (lower.startsWith('fc') || lower.startsWith('fd')) {
+    return true; // fc00::/7 Unique Local
+  }
+  if (lower.startsWith('ff')) {
+    return true; // ff00::/8 Multicast
+  }
+
+  return false;
+}
+
+async function assertSafeRemoteUrl(targetUrl) {
+  let parsed;
+  try {
+    parsed = new URL(targetUrl);
+  } catch {
+    const err = new Error('รูปแบบ URL ไม่ถูกต้อง');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    const err = new Error('รองรับเฉพาะลิงก์ http:// และ https:// เท่านั้น');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const hostname = parsed.hostname.toLowerCase();
+  if (
+    !hostname ||
+    hostname === 'localhost' ||
+    hostname.endsWith('.localhost') ||
+    hostname.endsWith('.local') ||
+    hostname.endsWith('.internal') ||
+    hostname.endsWith('.arpa')
+  ) {
+    const err = new Error('ไม่อนุญาตให้ดาวน์โหลดจาก localhost หรือเครือข่ายภายใน (SSRF Shield)');
+    err.statusCode = 403;
+    throw err;
+  }
+
+  // Resolve all IPs for hostname to defeat DNS rebinding & local resolution
+  let addresses;
+  try {
+    addresses = await dns.promises.lookup(hostname, { all: true });
+  } catch (err) {
+    const e = new Error(`ไม่สามารถระบุ IP ของโดเมน ${hostname}: ${err.message}`);
+    e.statusCode = 400;
+    throw e;
+  }
+
+  if (!addresses || addresses.length === 0) {
+    const err = new Error(`ไม่พบที่อยู่ IP สำหรับ ${hostname}`);
+    err.statusCode = 400;
+    throw err;
+  }
+
+  for (const item of addresses) {
+    if (isPrivateOrInternalIp(item.address)) {
+      const err = new Error(
+        `ไม่อนุญาตให้เชื่อมต่อไปยังที่อยู่ IP เครือข่ายภายใน (${item.address}) เพื่อความปลอดภัย (SSRF Shield)`
       );
-      return;
+      err.statusCode = 403;
+      throw err;
     }
+  }
 
+  return parsed;
+}
+
+async function fetchStreamWithRedirects(targetUrl, maxRedirects = 5) {
+  const parsedUrl = await assertSafeRemoteUrl(targetUrl);
+
+  return new Promise((resolve, reject) => {
     const client = parsedUrl.protocol === 'https:' ? https : http;
     const req = client.get(
       parsedUrl,
@@ -319,15 +411,19 @@ function fetchStreamWithRedirects(targetUrl, maxRedirects = 5) {
         },
         timeout: 20000,
       },
-      (res) => {
+      async (res) => {
         if (
           [301, 302, 303, 307, 308].includes(res.statusCode) &&
           res.headers.location &&
           maxRedirects > 0
         ) {
           res.resume();
-          const nextUrl = new URL(res.headers.location, parsedUrl).toString();
-          resolve(fetchStreamWithRedirects(nextUrl, maxRedirects - 1));
+          try {
+            const nextUrl = new URL(res.headers.location, parsedUrl).toString();
+            resolve(await fetchStreamWithRedirects(nextUrl, maxRedirects - 1));
+          } catch (err) {
+            reject(err);
+          }
           return;
         }
 

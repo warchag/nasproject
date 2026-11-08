@@ -91,20 +91,33 @@ function parseCookies(cookieHeader) {
 }
 
 function extractUserFromRequest(req) {
+  let token = null;
   const authHeader = req.headers['authorization'];
   if (authHeader && authHeader.startsWith('Bearer ')) {
-    const token = authHeader.slice(7).trim();
-    const user = verifyToken(token);
-    if (user) return user;
+    token = authHeader.slice(7).trim();
+  } else {
+    const cookies = parseCookies(req.headers['cookie']);
+    if (cookies.nas_token) token = cookies.nas_token;
   }
 
-  const cookies = parseCookies(req.headers['cookie']);
-  if (cookies.nas_token) {
-    const user = verifyToken(cookies.nas_token);
-    if (user) return user;
-  }
+  if (!token) return null;
+  const payload = verifyToken(token);
+  if (!payload || !payload.sub) return null;
 
-  return null;
+  // Security: Verify user still exists in database (revoke access for deleted/banned users immediately)
+  try {
+    const { getUserById } = require('./db');
+    const liveUser = getUserById(payload.sub);
+    if (!liveUser) return null;
+    return {
+      id: liveUser.id,
+      sub: liveUser.id,
+      username: liveUser.username,
+      role: liveUser.role,
+    };
+  } catch {
+    return payload;
+  }
 }
 
 module.exports = {

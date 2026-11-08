@@ -5,6 +5,12 @@ const { pipeline } = require('node:stream');
 const { getUserByUsername } = require('./db');
 const { verifyPassword } = require('./auth');
 const {
+  getClientIp,
+  checkIpLockout,
+  recordFailedLogin,
+  clearFailedLogin,
+} = require('./phase5');
+const {
   getUserRootPath,
   assertQuotaAvailable,
   assertExtensionAllowed,
@@ -25,6 +31,12 @@ function escapeXml(str) {
 }
 
 function authenticateBasicAuth(req) {
+  const clientIp = getClientIp(req);
+  const lock = checkIpLockout(clientIp);
+  if (lock.locked) {
+    return { locked: true, remainingSeconds: lock.remainingSeconds };
+  }
+
   const authHeader = req.headers['authorization'] || '';
   if (!authHeader.startsWith('Basic ')) {
     return null;
@@ -38,8 +50,10 @@ function authenticateBasicAuth(req) {
 
   const user = getUserByUsername(username);
   if (!user || !verifyPassword(password, user.password_hash)) {
+    recordFailedLogin(clientIp);
     return null;
   }
+  clearFailedLogin(clientIp);
   return user;
 }
 
@@ -106,11 +120,17 @@ async function handleWebdavRequest(req, res, urlObj) {
     return;
   }
 
-  const user = authenticateBasicAuth(req);
-  if (!user) {
+  const authResult = authenticateBasicAuth(req);
+  if (authResult?.locked) {
+    res.writeHead(429, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end(`Too Many Requests: IP locked due to failed authentication attempts. Please retry after ${authResult.remainingSeconds} seconds.`);
+    return;
+  }
+  if (!authResult) {
     requireBasicAuth(res);
     return;
   }
+  const user = authResult;
 
   const rootDir = getUserRootPath(user);
   const clientPath = decodeWebdavClientPath(urlObj.pathname);

@@ -352,6 +352,39 @@ function resolveSafePath(relativePath = '', rootDir = null) {
     throw err;
   }
 
+  // Security: Canonical Symlink Traversal Protection
+  try {
+    if (fs.existsSync(resolved)) {
+      const realTarget = fs.realpathSync(resolved);
+      const realRoot = fs.existsSync(targetRoot) ? fs.realpathSync(targetRoot) : targetRoot;
+      const realRootWithSep = realRoot.endsWith(path.sep) ? realRoot : realRoot + path.sep;
+      if (realTarget !== realRoot && !realTarget.startsWith(realRootWithSep)) {
+        const err = new Error('ไม่อนุญาตให้เข้าถึง Symbolic Link ที่ชี้ออกนอกพื้นที่จัดเก็บ (Symlink Traversal Blocked)');
+        err.statusCode = 403;
+        throw err;
+      }
+    } else {
+      let cur = path.dirname(resolved);
+      while (cur && cur !== targetRoot && !fs.existsSync(cur)) {
+        const parent = path.dirname(cur);
+        if (parent === cur) break;
+        cur = parent;
+      }
+      if (fs.existsSync(cur)) {
+        const realAncestor = fs.realpathSync(cur);
+        const realRoot = fs.existsSync(targetRoot) ? fs.realpathSync(targetRoot) : targetRoot;
+        const realRootWithSep = realRoot.endsWith(path.sep) ? realRoot : realRoot + path.sep;
+        if (realAncestor !== realRoot && !realAncestor.startsWith(realRootWithSep)) {
+          const err = new Error('ไม่อนุญาตให้สร้างไฟล์ผ่าน Symbolic Link ที่ชี้ออกนอกพื้นที่จัดเก็บ (Symlink Traversal Blocked)');
+          err.statusCode = 403;
+          throw err;
+        }
+      }
+    }
+  } catch (err) {
+    if (err.statusCode === 403) throw err;
+  }
+
   const normalizedClientPath =
     resolved === targetRoot
       ? '/'
