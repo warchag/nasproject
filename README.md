@@ -168,11 +168,36 @@ nasproject/
 
 ---
 
-## 🔒 ความปลอดภัย (Security Features)
-- **Path Traversal Protection:** ตรวจสอบและบังคับ Root Sandbox ทุกการเรียกอ่านหรือเขียนไฟล์ (`resolveSafePath`) ป้องกันการเข้าถึงไฟล์ระบบนอกขอบเขต
-- **Brute-Force IP Lockout:** ตรวจจับและล็อก IP ที่พยายามสุ่มรหัสผ่านเกิน 5 ครั้งต่อเนื่อง
-- **Secure Password Hashing:** แฮชรหัสผ่านด้วย `crypto.scryptSync` พร้อม Unique Salt แยกทุกบัญชี
-- **HTTP/1.1 Strict Headers:** บังคับ Content-Length, No-Sniff, XSS Protection และ Frame Guard ในทุกคำขอ
+## 🔒 ความปลอดภัยระดับองค์กร (Enterprise-Grade Security Architecture)
+
+ระบบ Personal NAS ได้รับการออกแบบตามหลักการ **Defense-in-Depth** พร้อมเกราะป้องกันช่องโหว่ทางไซเบอร์ที่ครอบคลุมทุกเลเยอร์:
+
+- **🛡️ SSRF Shield (Server-Side Request Forgery Defense):**
+  ระบบ Cloud Fetch ป้องกันการยิงคำขอเจาะระบบเครือข่ายภายในบ้านอย่างเข้มงวด โดยตรวจสอบ DNS Lookup ทุก IP ปลายทาง บล็อกการเชื่อมต่อไปยัง Localhost (`127.0.0.1`, `::1`), Private IP Ranges (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), Link-Local (`169.254.169.254` AWS Metadata) และตรวจสอบซ้ำทุกครั้งที่มี HTTP 301/302 Redirect
+
+- **📁 Symlink Traversal & Sandbox Escape Guard:**
+  ตรวจสอบ Canonical Real Path ด้วย `fs.realpathSync` ทั้งไฟล์ปลายทางและโฟลเดอร์บรรพบุรุษ ป้องกันการสร้าง Symbolic Link หลุดออกนอก Root Directory ไปยังโฟลเดอร์ระบบของโฮสต์ (macOS/Linux) โดยเด็ดขาด
+
+- **💣 Zip Bomb & Malicious Archive Shield:**
+  เครื่องมือแตกไฟล์ในตัว (`phase6.js`) มีระบบตรวจจับและป้องกัน **Zip Bomb** โดยจำกัดขนาดต่อไฟล์ไม่เกิน 1 GB, ขนาดยกเลิกการบีบอัดรวมไม่เกิน 4 GB และตรวจสอบอัตราส่วนการบีบอัด (Compression Ratio Guard) สูงสุด 50:1 พร้อมตรวจจับ POSIX Symlink Header ภายในไฟล์ ZIP เพื่อป้องกันการฝัง Link ข้ามไดรฟ์
+
+- **🌐 DNS Rebinding Defense:**
+  ตรวจสอบ `Host` Header ทุกคำขอที่ส่งเข้ามายังเซิร์ฟเวอร์ ยอมรับเฉพาะ `localhost`, `127.0.0.1`, `::1`, LAN IP Addresses ของเครื่อง หรือโดเมนที่กำหนดใน `ALLOWED_HOSTS` ป้องกันเว็บไซต์มัลแวร์ภายนอกเปลี่ยน DNS หลอกเบราว์เซอร์ให้ส่งคำขอเข้า NAS ภายในบ้าน
+
+- **🚫 Cross-Site Request Forgery (CSRF) Protection:**
+  ตรวจสอบ `Origin` และ `Referer` Header สำหรับคำขอประเภทเปลี่ยนแปลงข้อมูล (`POST`, `PUT`, `DELETE`, `PATCH`) เพื่อให้มั่นใจว่าคำขอมาจากหน้าเว็บของ NAS โดยตรง ไม่อนุญาตให้สคริปต์จากเว็บไซต์ภายนอกส่งคำขอข้ามโดเมน
+
+- **🔐 Anti-Brute-Force & Adaptive IP Lockout:**
+  - ล็อก IP อัตโนมัติ 15 นาทีทันทีเมื่อกรอกรหัสผ่านผิดเกิน 5 ครั้ง
+  - ครอบคลุมทั้ง **Web UI Login**, **Public Share Links (`/s/:token`)**, **File Drop Requests (`/d/:token`)** และ **WebDAV Basic Authentication**
+  - ป้องกันการปลอมแปลง IP โดยยึด Socket Address จริงเป็นหลัก (เปิดใช้ `X-Forwarded-For` เฉพาะเมื่อตั้งค่า `TRUST_PROXY=1`)
+
+- **🔑 Stateless Token Revocation Check:**
+  ระบบยืนยันตัวตนแบบ JWT-like มีการเชื่อมต่อตรวจสอบสถานะบัญชีผู้ใช้ในฐานข้อมูลจริง (`sqlite`) แบบเรียลไทม์ หากผู้ใช้ถูกลบหรือระงับสิทธิ์ Token จะถูกปฏิเสธทันทีโดยไม่ต้องรอให้หมดอายุ
+
+- **🖼️ SVG Content-Security-Policy & Clickjacking Defense:**
+  - บังคับใช้ `X-Frame-Options: SAMEORIGIN` และ `Content-Security-Policy: frame-ancestors 'self'` ป้องกันการฝังเว็บใน `<iframe>` ของเว็บอื่น
+  - เสิร์ฟไฟล์ SVG และพรีวิวไฟล์ด้วย CSP Sandbox (`default-src 'none'; style-src 'unsafe-inline'; sandbox`) ป้องกันการฝังโค้ด XSS/JavaScript ภายในไฟล์ภาพ SVG
 
 ---
 
