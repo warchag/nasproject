@@ -5301,6 +5301,9 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('mobile-menu-btn')?.addEventListener('click', () => {
     toggleMobileSidebar();
   });
+  document.getElementById('sidebar-close-btn')?.addEventListener('click', () => {
+    toggleMobileSidebar(false);
+  });
   document.getElementById('sidebar-backdrop')?.addEventListener('click', () => {
     toggleMobileSidebar(false);
   });
