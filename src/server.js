@@ -124,10 +124,6 @@ const {
   searchFileContents,
   inspectImageMetadata,
   transformImageOnNas,
-  createKanbanCard,
-  listKanbanCards,
-  updateKanbanCard,
-  deleteKanbanCard,
 } = require('./phase8');
 const {
   getRecentFiles,
@@ -2105,53 +2101,6 @@ const server = http.createServer(async (req, res) => {
         message: `บันทึกไฟล์ภาพ "${resImg.outputName}" สำเร็จ! 🖼️`,
         ...resImg,
       });
-      return;
-    }
-
-    // 4. Kanban Task & Project Board
-    if (pathname === '/api/kanban' && method === 'GET') {
-      const tasks = listKanbanCards();
-      sendJson(res, 200, { tasks });
-      return;
-    }
-
-    if (pathname === '/api/kanban' && method === 'POST') {
-      const body = await readJsonBody(req);
-      const task = createKanbanCard(authUser, {
-        title: body.title || '',
-        description: body.description || '',
-        status: body.status || 'todo',
-        priority: body.priority || 'normal',
-        linkedPath: body.linkedPath || '',
-      });
-      sendJson(res, 201, {
-        message: `เพิ่มการ์ดงาน "${task.title}" ลงกระดาน Kanban แล้ว 📌`,
-        task,
-      });
-      return;
-    }
-
-    if (pathname.startsWith('/api/kanban/') && method === 'PUT') {
-      const taskId = Number(pathname.slice('/api/kanban/'.length));
-      const body = await readJsonBody(req);
-      const updated = updateKanbanCard(taskId, {
-        title: body.title,
-        description: body.description,
-        status: body.status,
-        priority: body.priority,
-        linked_path: body.linkedPath,
-      });
-      sendJson(res, 200, {
-        message: 'อัปเดตสถานะงานเรียบร้อยแล้ว',
-        task: updated,
-      });
-      return;
-    }
-
-    if (pathname.startsWith('/api/kanban/') && method === 'DELETE') {
-      const taskId = Number(pathname.slice('/api/kanban/'.length));
-      deleteKanbanCard(taskId);
-      sendJson(res, 200, { message: 'ลบการ์ดงานออกจากกระดานแล้ว' });
       return;
     }
 

@@ -2,12 +2,6 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const {
-  insertKanbanTask,
-  listKanbanTasks,
-  updateKanbanTask,
-  deleteKanbanTaskById,
-} = require('./db');
-const {
   getUserRootPath,
   resolveSafePath,
   getUniqueUploadPath,
@@ -618,52 +612,9 @@ function transformImageOnNas(
   };
 }
 
-// ============================================================================
-// 4. KANBAN TASK & PROJECT BOARD
-// ============================================================================
-function createKanbanCard(user, { title = '', description = '', status = 'todo', priority = 'normal', linkedPath = '' } = {}) {
-  const cleanTitle = String(title || '').trim();
-  if (!cleanTitle) {
-    const err = new Error('กรุณาระบุหัวข้องานในกระดาน Kanban');
-    err.statusCode = 400;
-    throw err;
-  }
-  return insertKanbanTask({
-    author_id: user.id,
-    author_username: user.username,
-    title: cleanTitle,
-    description: String(description || '').trim(),
-    status,
-    priority,
-    linked_path: String(linkedPath || '').trim(),
-  });
-}
-
-function listKanbanCards() {
-  return listKanbanTasks();
-}
-
-function updateKanbanCard(id, patch = {}) {
-  const updated = updateKanbanTask(Number(id || 0), patch);
-  if (!updated) {
-    const err = new Error('ไม่พบการ์ดงานที่ต้องการอัปเดต');
-    err.statusCode = 404;
-    throw err;
-  }
-  return updated;
-}
-
-function deleteKanbanCard(id) {
-  return deleteKanbanTaskById(Number(id || 0));
-}
-
 module.exports = {
   generateQrSvg,
   searchFileContents,
   inspectImageMetadata,
   transformImageOnNas,
-  createKanbanCard,
-  listKanbanCards,
-  updateKanbanCard,
-  deleteKanbanCard,
 };

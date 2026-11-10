@@ -128,19 +128,6 @@ db.exec(`
     is_shared INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL
   );
-
-  CREATE TABLE IF NOT EXISTS kanban_tasks (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    author_id INTEGER NOT NULL,
-    author_username TEXT NOT NULL,
-    title TEXT NOT NULL,
-    description TEXT NOT NULL DEFAULT '',
-    status TEXT NOT NULL DEFAULT 'todo',
-    priority TEXT NOT NULL DEFAULT 'normal',
-    linked_path TEXT NOT NULL DEFAULT '',
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-  );
 `);
 
 // Safe migration: add quota_bytes column to users if upgrading from Phase 1/2
@@ -681,82 +668,6 @@ function deleteClipboardItemById(id, user) {
   return true;
 }
 
-// ================= PHASE 8: KANBAN TASK & PROJECT BOARD =================
-function insertKanbanTask({
-  author_id,
-  author_username,
-  title = '',
-  description = '',
-  status = 'todo',
-  priority = 'normal',
-  linked_path = '',
-}) {
-  const now = new Date().toISOString();
-  const validStatus = ['todo', 'doing', 'done'].includes(status) ? status : 'todo';
-  const validPriority = ['low', 'normal', 'high'].includes(priority) ? priority : 'normal';
-  const res = db
-    .prepare(
-      `INSERT INTO kanban_tasks (
-        author_id, author_username, title, description, status, priority, linked_path, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    )
-    .run(
-      Number.isFinite(Number(author_id)) ? Number(author_id) : 0,
-      String(author_username || 'admin'),
-      String(title || '').trim(),
-      String(description || '').trim(),
-      validStatus,
-      validPriority,
-      String(linked_path || '').trim(),
-      now,
-      now
-    );
-  return db.prepare('SELECT * FROM kanban_tasks WHERE id = ?').get(res.lastInsertRowid);
-}
-
-function listKanbanTasks() {
-  return db.prepare('SELECT * FROM kanban_tasks ORDER BY id DESC LIMIT 200').all();
-}
-
-function updateKanbanTask(id, patch = {}) {
-  const existing = db.prepare('SELECT * FROM kanban_tasks WHERE id = ?').get(Number(id || 0));
-  if (!existing) return null;
-
-  const normalizedPatchStatus = patch.status === 'in_progress' ? 'doing' : patch.status;
-  const nextStatus = ['todo', 'doing', 'done'].includes(normalizedPatchStatus)
-    ? normalizedPatchStatus
-    : existing.status;
-  const nextPriority = ['low', 'normal', 'high'].includes(patch.priority)
-    ? patch.priority
-    : existing.priority;
-  const nextTitle =
-    typeof patch.title === 'string' && patch.title.trim() ? patch.title.trim() : existing.title;
-  const nextDesc =
-    typeof patch.description === 'string' ? patch.description.trim() : existing.description;
-  const nextPath =
-    typeof patch.linked_path === 'string' ? patch.linked_path.trim() : existing.linked_path;
-
-  db.prepare(
-    `UPDATE kanban_tasks
-     SET title = ?, description = ?, status = ?, priority = ?, linked_path = ?, updated_at = ?
-     WHERE id = ?`
-  ).run(
-    nextTitle,
-    nextDesc,
-    nextStatus,
-    nextPriority,
-    nextPath,
-    new Date().toISOString(),
-    existing.id
-  );
-  return db.prepare('SELECT * FROM kanban_tasks WHERE id = ?').get(existing.id);
-}
-
-function deleteKanbanTaskById(id) {
-  db.prepare('DELETE FROM kanban_tasks WHERE id = ?').run(Number(id || 0));
-  return true;
-}
-
 module.exports = {
   db,
   getSystemSetting,
@@ -806,8 +717,4 @@ module.exports = {
   insertClipboardItem,
   listClipboardItems,
   deleteClipboardItemById,
-  insertKanbanTask,
-  listKanbanTasks,
-  updateKanbanTask,
-  deleteKanbanTaskById,
 };

@@ -1,6 +1,5 @@
 /* ==========================================================================
    WATTVISION TELEMETRY DESIGN SYSTEM FOR PERSONAL NAS SERVER (DARK & LIGHT MODE)
-   Reference: design/design-md-sistema-de-monitoreo-el-ctrico-wattvision-DESIGN.md
    - Dark Mode (Default): #121212 Background, #1E1E1E Card, #252525 Hover, #2C2C2E Border, #00E5FF Cyan
    - Light Mode ([data-theme="light"]): #F4F6F9 Background, #FFFFFF Card, #EEF2F6 Hover, #E2E8F0 Border, #0088A9 Cyan
    - Typography: Inter (UI & Titles 24px SemiBold) + JetBrains Mono (KPIs 32px Bold)
@@ -2353,65 +2352,7 @@ pre,
   overflow-y: auto;
 }
 
-/* ================= PHASE 8: KANBAN, MARKDOWN, CSV TABLE, GREP & COMMAND PALETTE ================= */
-.kanban-column {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  min-height: 220px;
-}
-
-.kanban-card {
-  background: var(--bg-main);
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  padding: 14px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  transition: border-color 0.15s, background 0.15s;
-}
-
-.kanban-card:hover {
-  background: var(--bg-card-hover);
-  border-color: var(--primary);
-}
-
-.kanban-card-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.kanban-card-desc {
-  font-size: 12.5px;
-  color: var(--text-secondary);
-  line-height: 1.45;
-}
-
-.kanban-link-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-family: var(--font-mono);
-  font-size: 11.5px;
-  color: var(--primary);
-  background: rgba(0, 229, 255, 0.1);
-  border: 1px solid rgba(0, 229, 255, 0.28);
-  padding: 4px 8px;
-  border-radius: 6px;
-  cursor: pointer;
-  width: fit-content;
-}
-
-.kanban-link-btn:hover {
-  background: rgba(0, 229, 255, 0.2);
-}
-
+/* ================= PHASE 8: MARKDOWN, CSV TABLE, GREP & COMMAND PALETTE ================= */
 .markdown-render-box {
   width: 100%;
   min-height: 360px;
