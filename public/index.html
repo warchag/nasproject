@@ -441,9 +441,10 @@
       <!-- Drag & Drop Overlay -->
       <div id="drag-overlay" class="drag-overlay hidden">
         <div class="drag-box">
-          <div class="drag-icon">☁️⬆️</div>
-          <h3>ปล่อยไฟล์ที่นี่เพื่ออัปโหลดแบบ Chunked & Resumable</h3>
+          <div class="drag-icon">📁☁️⬆️</div>
+          <h3>ปล่อยไฟล์หรือทั้งโฟลเดอร์ที่นี่เพื่ออัปโหลดทันที</h3>
           <p id="drag-target-folder">โฟลเดอร์ปัจจุบัน: /</p>
+          <small style="color:var(--text-secondary);margin-top:4px;display:block;">(รองรับการลากโฟลเดอร์ย่อยหลายชั้น พร้อมสร้างโฟลเดอร์ให้อัตโนมัติ)</small>
         </div>
       </div>
 
@@ -558,8 +559,12 @@
 
           <div class="file-subbar-right">
             <input type="file" id="file-upload-input" multiple class="hidden" />
-            <button class="btn btn-primary" id="upload-btn">
+            <input type="file" id="folder-upload-input" webkitdirectory directory multiple class="hidden" />
+            <button class="btn btn-primary" id="upload-btn" title="เลือกไฟล์อัปโหลดลงโฟลเดอร์นี้">
               ⬆️ อัปโหลดไฟล์
+            </button>
+            <button class="btn btn-secondary" id="upload-folder-btn" title="อัปโหลดทั้งโฟลเดอร์พร้อมโครงสร้างโฟลเดอร์ย่อย">
+              📁 อัปโหลดโฟลเดอร์
             </button>
             <button class="btn btn-secondary" id="fetch-url-btn" title="ดึงไฟล์จากลิงก์ภายนอกลง NAS โดยตรง">
               🌐 ดึงจาก URL
@@ -582,6 +587,7 @@
       <div id="selection-bar" class="selection-bar hidden">
         <div class="selection-info">
           <span class="selection-count" id="selection-count-text">เลือก 0 รายการ</span>
+          <span class="selection-size-badge pill pill-cyan" id="selection-size-text" style="font-size:12px;margin-left:8px;">0 B</span>
         </div>
         <div class="selection-actions">
           <button class="btn btn-primary" id="batch-zip-btn">
@@ -1380,16 +1386,22 @@
 
   <!-- ================= MODAL: PREVIEW / TEXT EDITOR & LIGHTBOX SLIDESHOW ================= -->
   <div id="preview-modal" class="modal-backdrop hidden">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-lg" id="preview-modal-dialog">
       <div class="modal-header">
-        <h3 id="preview-title">ชื่อไฟล์</h3>
+        <div style="display:flex;align-items:center;gap:10px;min-width:0;flex:1;">
+          <h3 id="preview-title" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:0;">ชื่อไฟล์</h3>
+          <span id="preview-meta-badge" class="pill pill-cyan hidden" style="font-size:11px;flex-shrink:0;">PDF</span>
+        </div>
         <div class="modal-header-actions">
           <button class="btn btn-secondary btn-sm hidden" id="preview-mode-render-btn">📖 โหมดอ่านสวยงาม</button>
           <button class="btn btn-secondary btn-sm hidden" id="preview-mode-edit-btn">✏️ โหมดแก้ไขโค้ด</button>
           <button class="btn btn-secondary btn-sm hidden" id="preview-prev-btn" title="ก่อนหน้า (Left Arrow)">◀ ก่อนหน้า</button>
           <button class="btn btn-secondary btn-sm hidden" id="preview-next-btn" title="ถัดไป (Right Arrow)">ถัดไป ▶</button>
           <button class="btn btn-primary hidden" id="save-text-btn">💾 บันทึกการแก้ไข</button>
-          <a id="preview-download-link" class="btn btn-secondary" href="#" download>⬇️ ดาวน์โหลด</a>
+          <button class="btn btn-secondary btn-sm hidden" id="preview-pdf-newtab-btn" title="เปิดดูเอกสาร PDF เต็มหน้าต่างในแท็บใหม่">↗️ เปิดแท็บใหม่</button>
+          <button class="btn btn-secondary btn-sm hidden" id="preview-pdf-print-btn" title="สั่งพิมพ์เอกสาร PDF">🖨️ พิมพ์</button>
+          <button class="btn btn-secondary btn-sm" id="preview-fullscreen-btn" title="ขยายเต็มหน้าจอ">⛶ ขยาย</button>
+          <a id="preview-download-link" class="btn btn-secondary btn-sm" href="#" download>⬇️ ดาวน์โหลด</a>
           <button class="btn-close" id="close-preview-btn">✕</button>
         </div>
       </div>

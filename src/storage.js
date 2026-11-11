@@ -882,7 +882,7 @@ function computeAdaptiveChunkSize(totalSize) {
   return 8 * 1024 * 1024; // 8 MB for > 500MB (stable Wi-Fi & LAN high-throughput transfer)
 }
 
-function initChunkedUpload({ targetPath = '/', filename, totalSize, lastModified = 0, user = null }) {
+function initChunkedUpload({ targetPath = '/', filename, totalSize, lastModified = 0, user = null, createParents = true }) {
   const uploadsTmpDir = getUploadsTmpDir();
   const filesRoot = getFilesRoot();
   fs.mkdirSync(uploadsTmpDir, { recursive: true });
@@ -902,9 +902,17 @@ function initChunkedUpload({ targetPath = '/', filename, totalSize, lastModified
 
   const rootDir = getUserRootPath(user);
   const { fullPath: targetDirFull } = resolveSafePath(targetPath, rootDir);
-  if (!fs.existsSync(targetDirFull) || !fs.statSync(targetDirFull).isDirectory()) {
-    const err = new Error('ไม่พบโฟลเดอร์ปลายทาง');
-    err.statusCode = 404;
+  if (!fs.existsSync(targetDirFull)) {
+    if (createParents) {
+      fs.mkdirSync(targetDirFull, { recursive: true });
+    } else {
+      const err = new Error('ไม่พบโฟลเดอร์ปลายทาง');
+      err.statusCode = 404;
+      throw err;
+    }
+  } else if (!fs.statSync(targetDirFull).isDirectory()) {
+    const err = new Error('ปลายทางต้องเป็นโฟลเดอร์');
+    err.statusCode = 400;
     throw err;
   }
 

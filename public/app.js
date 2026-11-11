@@ -10,6 +10,7 @@ const state = {
   sortBy: 'name-asc',
   searchQuery: '',
   selectedPaths: new Set(),
+  lastSelectedPath: null,
   editingFilePath: null,
   sharingItemPath: null,
   editingUserId: null,
@@ -703,25 +704,44 @@ function switchTab(tabName) {
 function updateSelectionBar() {
   const bar = document.getElementById('selection-bar');
   const countText = document.getElementById('selection-count-text');
+  const sizeText = document.getElementById('selection-size-text');
   const count = state.selectedPaths.size;
 
   if (count === 0 || state.activeTab !== 'files') {
-    bar.classList.add('hidden');
+    bar?.classList.add('hidden');
   } else {
     countText.textContent = `เลือก ${count} รายการ`;
-    bar.classList.remove('hidden');
+    let totalBytes = 0;
+    if (Array.isArray(state.files)) {
+      state.files.forEach((f) => {
+        if (state.selectedPaths.has(f.path) && typeof f.size === 'number') {
+          totalBytes += f.size;
+        }
+      });
+    }
+    if (sizeText) {
+      sizeText.textContent = formatBytes(totalBytes);
+      sizeText.classList.remove('hidden');
+    }
+    bar?.classList.remove('hidden');
   }
+}
+
+function syncCardSelectionUi() {
+  document.querySelectorAll('.file-card').forEach((card) => {
+    const chk = card.querySelector('.file-select-check');
+    const path = card.dataset.path;
+    const isSel = state.selectedPaths.has(path);
+    if (chk) chk.checked = isSel;
+    card.classList.toggle('selected', isSel);
+  });
+  updateSelectionBar();
 }
 
 function clearSelection() {
   state.selectedPaths.clear();
-  updateSelectionBar();
-  document.querySelectorAll('.file-card').forEach((card) => {
-    card.classList.remove('selected');
-  });
-  document.querySelectorAll('.file-select-check').forEach((chk) => {
-    chk.checked = false;
-  });
+  state.lastSelectedPath = null;
+  syncCardSelectionUi();
 }
 
 function downloadAsZip(pathsArray) {
@@ -878,6 +898,7 @@ function renderFiles() {
     const isSelected = state.selectedPaths.has(item.path);
     const card = document.createElement('div');
     card.className = `file-card has-checkbox ${isSelected ? 'selected' : ''}`;
+    card.dataset.path = item.path;
 
     const icon = item.isVault ? '🔐' : getCategoryIcon(item.category, item.isDirectory);
     const metaText = item.isDirectory
@@ -937,6 +958,22 @@ function renderFiles() {
     const checkbox = card.querySelector('.file-select-check');
     checkbox.addEventListener('click', (e) => {
       e.stopPropagation();
+      if (e.shiftKey && state.lastSelectedPath) {
+        const visible = getSortedAndFilteredFiles();
+        const lastIdx = visible.findIndex((f) => f.path === state.lastSelectedPath);
+        const currIdx = visible.findIndex((f) => f.path === item.path);
+        if (lastIdx !== -1 && currIdx !== -1) {
+          const start = Math.min(lastIdx, currIdx);
+          const end = Math.max(lastIdx, currIdx);
+          for (let i = start; i <= end; i++) {
+            state.selectedPaths.add(visible[i].path);
+          }
+          syncCardSelectionUi();
+          return;
+        }
+      }
+
+      state.lastSelectedPath = item.path;
       if (checkbox.checked) {
         state.selectedPaths.add(item.path);
         card.classList.add('selected');
@@ -950,6 +987,38 @@ function renderFiles() {
     // Main card click: open directory, unlock vault, or preview file
     card.addEventListener('click', (e) => {
       if (e.target.closest('.action-btn') || e.target.closest('.file-select-check')) return;
+
+      // Multi-Select via Ctrl / Cmd + Click
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        state.lastSelectedPath = item.path;
+        if (state.selectedPaths.has(item.path)) {
+          state.selectedPaths.delete(item.path);
+        } else {
+          state.selectedPaths.add(item.path);
+        }
+        syncCardSelectionUi();
+        return;
+      }
+
+      // Multi-Select Range via Shift + Click
+      if (e.shiftKey && state.lastSelectedPath) {
+        e.preventDefault();
+        const visible = getSortedAndFilteredFiles();
+        const lastIdx = visible.findIndex((f) => f.path === state.lastSelectedPath);
+        const currIdx = visible.findIndex((f) => f.path === item.path);
+        if (lastIdx !== -1 && currIdx !== -1) {
+          const start = Math.min(lastIdx, currIdx);
+          const end = Math.max(lastIdx, currIdx);
+          for (let i = start; i <= end; i++) {
+            state.selectedPaths.add(visible[i].path);
+          }
+          syncCardSelectionUi();
+          return;
+        }
+      }
+
+      state.lastSelectedPath = item.path;
       if (item.isDirectory) {
         loadDirectory(item.path);
       } else if (item.isVault) {
@@ -1721,8 +1790,28 @@ function formatEta(seconds) {
 
 // ================= CHUNKED & RESUMABLE UPLOAD (PHASE 2 & 3) =================
 async function uploadFilesList(fileList) {
-  const files = Array.from(fileList || []);
-  if (files.length === 0) return;
+  const rawList = Array.from(fileList || []);
+  if (rawList.length === 0) return;
+
+  const normalizedItems = rawList.map((item) => {
+    if (item && item.file instanceof File) {
+      return {
+        file: item.file,
+        relativeDir: String(item.relativeDir || '').trim(),
+      };
+    } else {
+      const f = item;
+      const relPath = f.webkitRelativePath || '';
+      const parts = relPath.split('/').filter(Boolean);
+      parts.pop(); // remove filename
+      return {
+        file: f,
+        relativeDir: parts.join('/'),
+      };
+    }
+  });
+
+  const files = normalizedItems;
 
   if (state.uploadController.active) {
     showToast('กำลังมีคิวอัปโหลดทำงานอยู่ กรุณารอสักครู่', 'error');
@@ -1761,7 +1850,7 @@ async function uploadFilesList(fileList) {
   resumedBadge.classList.add('hidden');
   banner.classList.remove('hidden');
 
-  const grandTotalBytes = files.reduce((acc, f) => acc + (f.size || 0), 0);
+  const grandTotalBytes = files.reduce((acc, item) => acc + (item.file.size || 0), 0);
   let completedFilesBytes = 0;
   let completedCount = 0;
   const startTimeMs = Date.now();
@@ -1780,12 +1869,14 @@ async function uploadFilesList(fileList) {
 
   // Render initial per-file rows in the Upload Task Manager
   itemsListEl.innerHTML = '';
-  const rowRefs = files.map((file, idx) => {
+  const rowRefs = files.map((item, idx) => {
+    const file = item.file;
+    const displayName = item.relativeDir ? `${item.relativeDir}/${file.name}` : file.name;
     const row = document.createElement('div');
     row.className = 'upload-item-row';
     row.innerHTML = `
       <div class="upload-item-top">
-        <div class="upload-item-name">${idx + 1}. ${escapeHtml(file.name)}</div>
+        <div class="upload-item-name" title="${escapeHtml(displayName)}">${idx + 1}. ${escapeHtml(displayName)}</div>
         <div class="upload-item-meta">
           <span class="item-chunk-status">⏳ รอคิว...</span>
           <span class="item-bytes-status">0 B / ${formatBytes(file.size)}</span>
@@ -1841,13 +1932,18 @@ async function uploadFilesList(fileList) {
   for (let i = 0; i < files.length; i++) {
     if (state.uploadController.cancelled) break;
 
-    const file = files[i];
+    const item = files[i];
+    const file = item.file;
     const ref = rowRefs[i];
     resumedBadge.classList.add('hidden');
     ref.chunkStatusEl.textContent = 'กำลังเตรียมส่งข้อมูล...';
 
+    const fileTargetDir = item.relativeDir
+      ? (state.currentPath === '/' ? `/${item.relativeDir}` : `${state.currentPath}/${item.relativeDir}`)
+      : state.currentPath;
+
     try {
-      await uploadSingleFileChunked(file, state.currentPath, {
+      await uploadSingleFileChunked(file, fileTargetDir, {
         onInit: ({ resumed, uploadedBytes, totalSize, totalChunks, currentChunk }) => {
           if (resumed) {
             resumedBadge.classList.remove('hidden');
@@ -1942,6 +2038,7 @@ async function uploadSingleFileChunked(file, targetDir, callbacks) {
         filename: file.name,
         totalSize: file.size,
         lastModified: file.lastModified || 0,
+        createParents: true,
       },
     });
   } catch (err) {
@@ -2076,7 +2173,7 @@ function uploadLegacyStreamWithProgress(file, targetDir, callbacks) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     state.uploadController.currentXhr = xhr;
-    const url = `/api/files/upload?path=${encodeURIComponent(targetDir)}&filename=${encodeURIComponent(file.name)}`;
+    const url = `/api/files/upload?path=${encodeURIComponent(targetDir)}&filename=${encodeURIComponent(file.name)}&createParents=1`;
     xhr.open('POST', url, true);
     xhr.setRequestHeader('Content-Type', 'application/octet-stream');
 
@@ -2237,8 +2334,53 @@ async function openFilePreview(item, playlistItems = null) {
     bodyEl.innerHTML = `<video src="${streamUrl}" controls autoplay></video>`;
   } else if (item.category === 'audio') {
     bodyEl.innerHTML = `<audio src="${streamUrl}" controls autoplay></audio>`;
-  } else if (item.extension === '.pdf') {
-    bodyEl.innerHTML = `<iframe src="${streamUrl}" style="width:100%;height:70vh;border:none;border-radius:8px;"></iframe>`;
+  } else if ((item.extension || '').toLowerCase() === '.pdf') {
+    const metaBadge = document.getElementById('preview-meta-badge');
+    if (metaBadge) {
+      metaBadge.textContent = `📄 PDF • ${formatBytes(item.size || 0)}`;
+      metaBadge.classList.remove('hidden');
+    }
+
+    const newTabBtn = document.getElementById('preview-pdf-newtab-btn');
+    const printBtn = document.getElementById('preview-pdf-print-btn');
+    const fullscreenBtn = document.getElementById('preview-fullscreen-btn');
+
+    newTabBtn?.classList.remove('hidden');
+    printBtn?.classList.remove('hidden');
+    fullscreenBtn?.classList.remove('hidden');
+
+    if (newTabBtn) {
+      newTabBtn.onclick = () => window.open(streamUrl, '_blank');
+    }
+    if (printBtn) {
+      printBtn.onclick = () => {
+        const frame = bodyEl.querySelector('iframe');
+        try {
+          frame?.contentWindow?.print() || window.open(streamUrl, '_blank');
+        } catch {
+          window.open(streamUrl, '_blank');
+        }
+      };
+    }
+    if (fullscreenBtn) {
+      fullscreenBtn.onclick = () => {
+        const dialog = document.getElementById('preview-modal-dialog');
+        const isFull = dialog?.classList.toggle('modal-fullscreen');
+        fullscreenBtn.textContent = isFull ? '⛶ ย่อหน้าต่าง' : '⛶ ขยาย';
+      };
+    }
+
+    bodyEl.innerHTML = `
+      <div class="pdf-viewer-container">
+        <iframe class="pdf-viewer-frame" src="${streamUrl}#toolbar=1&navpanes=1" title="${escapeHtml(item.name)}">
+          <p style="padding:28px;text-align:center;color:var(--text-secondary);">
+            เบราว์เซอร์ของคุณไม่รองรับการเปิดดู PDF ภายในกรอบหน้านี้<br />
+            <a href="${streamUrl}" target="_blank" class="btn btn-primary" style="margin-top:14px;display:inline-block;">↗️ เปิดดู PDF ในแท็บใหม่</a>
+            <a href="${downloadUrl}" class="btn btn-secondary" style="margin-top:14px;margin-left:8px;display:inline-block;">⬇️ ดาวน์โหลดไฟล์</a>
+          </p>
+        </iframe>
+      </div>
+    `;
   } else if (item.category === 'text') {
     try {
       const data = await apiRequest(`/api/files/content?path=${encodeURIComponent(item.path)}`);
@@ -4485,7 +4627,84 @@ document.addEventListener('DOMContentLoaded', () => {
     uploadFilesList(e.target.files);
   });
 
-  // Drag & Drop Upload
+  // Folder Upload Button & Input (Recursive Folder Upload)
+  const folderInput = document.getElementById('folder-upload-input');
+  document.getElementById('upload-folder-btn')?.addEventListener('click', () => {
+    if (folderInput) {
+      folderInput.value = '';
+      folderInput.click();
+    }
+  });
+  folderInput?.addEventListener('change', (e) => {
+    const rawFiles = Array.from(e.target.files || []);
+    const items = rawFiles.map((file) => {
+      const relPath = file.webkitRelativePath || '';
+      const parts = relPath.split('/').filter(Boolean);
+      parts.pop();
+      return { file, relativeDir: parts.join('/') };
+    });
+    if (items.length > 0) {
+      uploadFilesList(items);
+    }
+  });
+
+  // Drag & Drop Upload with Recursive Directory Scanner
+  async function extractDroppedFilesAndDirectories(dataTransfer) {
+    const result = [];
+    const items = dataTransfer.items;
+
+    if (items && items.length > 0 && typeof items[0].webkitGetAsEntry === 'function') {
+      const queue = [];
+      for (let i = 0; i < items.length; i++) {
+        const entry = items[i].webkitGetAsEntry?.();
+        if (entry) queue.push({ entry, relDir: '' });
+      }
+
+      async function processEntry(entry, relDir) {
+        if (entry.isFile) {
+          return new Promise((resolve) => {
+            entry.file(
+              (file) => {
+                result.push({ file, relativeDir: relDir });
+                resolve();
+              },
+              () => resolve()
+            );
+          });
+        } else if (entry.isDirectory) {
+          const nextRelDir = relDir ? `${relDir}/${entry.name}` : entry.name;
+          const dirReader = entry.createReader();
+          const readBatch = () =>
+            new Promise((resolve) => {
+              dirReader.readEntries(resolve, () => resolve([]));
+            });
+
+          let entries;
+          do {
+            entries = await readBatch();
+            for (const child of entries) {
+              await processEntry(child, nextRelDir);
+            }
+          } while (entries && entries.length > 0);
+        }
+      }
+
+      for (const q of queue) {
+        await processEntry(q.entry, q.relDir);
+      }
+
+      if (result.length > 0) return result;
+    }
+
+    const files = Array.from(dataTransfer.files || []);
+    return files.map((file) => {
+      const relPath = file.webkitRelativePath || '';
+      const parts = relPath.split('/').filter(Boolean);
+      parts.pop();
+      return { file, relativeDir: parts.join('/') };
+    });
+  }
+
   const dropZone = document.getElementById('drop-zone');
   const dragOverlay = document.getElementById('drag-overlay');
   let dragCounter = 0;
@@ -4510,13 +4729,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  dropZone.addEventListener('drop', (e) => {
+  dropZone.addEventListener('drop', async (e) => {
     e.preventDefault();
     dragCounter = 0;
     dragOverlay.classList.add('hidden');
     if (state.activeTab !== 'files' || state.draggingInternalCard) return;
-    if (e.dataTransfer && e.dataTransfer.files.length > 0) {
-      uploadFilesList(e.dataTransfer.files);
+    if (e.dataTransfer) {
+      const droppedItems = await extractDroppedFilesAndDirectories(e.dataTransfer);
+      if (droppedItems.length > 0) {
+        uploadFilesList(droppedItems);
+      }
     }
   });
 
@@ -4550,10 +4772,19 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('cancel-prompt-btn').addEventListener('click', closePromptModal);
 
   // Preview Modal Close, Lightbox Prev/Next & Save Text
-  document.getElementById('close-preview-btn').addEventListener('click', () => {
+  const closePreviewModal = () => {
     document.getElementById('preview-body').innerHTML = '';
+    document.getElementById('preview-meta-badge')?.classList.add('hidden');
+    document.getElementById('preview-pdf-newtab-btn')?.classList.add('hidden');
+    document.getElementById('preview-pdf-print-btn')?.classList.add('hidden');
+    document.getElementById('preview-fullscreen-btn')?.classList.add('hidden');
+    const dialog = document.getElementById('preview-modal-dialog');
+    if (dialog) dialog.classList.remove('modal-fullscreen');
+    const fullBtn = document.getElementById('preview-fullscreen-btn');
+    if (fullBtn) fullBtn.textContent = '⛶ ขยาย';
     document.getElementById('preview-modal').classList.add('hidden');
-  });
+  };
+  document.getElementById('close-preview-btn').addEventListener('click', closePreviewModal);
 
   document.getElementById('preview-prev-btn')?.addEventListener('click', () => {
     stepLightbox(-1);
@@ -5136,8 +5367,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
+      const previewOpen = !document.getElementById('preview-modal')?.classList.contains('hidden');
+      if (previewOpen) {
+        closePreviewModal();
+        return;
+      }
+      if (state.selectedPaths.size > 0) {
+        clearSelection();
+        return;
+      }
       document.getElementById('qr-modal')?.classList.add('hidden');
       closeFileContextMenu();
+      document.getElementById('folder-picker-modal')?.classList.add('hidden');
+      document.getElementById('create-file-modal')?.classList.add('hidden');
     }
   });
 

@@ -443,9 +443,18 @@ function handleStreamUpload(req, res, urlObj, user) {
 
   const rootDir = getUserRootPath(user);
   const { fullPath: targetDirFull } = resolveSafePath(dirClientPath, rootDir);
-  if (!fs.existsSync(targetDirFull) || !fs.statSync(targetDirFull).isDirectory()) {
+  const createParents = urlObj.searchParams.get('createParents') === '1';
+  if (!fs.existsSync(targetDirFull)) {
+    if (createParents) {
+      fs.mkdirSync(targetDirFull, { recursive: true });
+    } else {
+      req.resume();
+      sendJson(res, 404, { error: 'ไม่พบโฟลเดอร์ปลายทาง' });
+      return;
+    }
+  } else if (!fs.statSync(targetDirFull).isDirectory()) {
     req.resume();
-    sendJson(res, 404, { error: 'ไม่พบโฟลเดอร์ปลายทาง' });
+    sendJson(res, 400, { error: 'ปลายทางต้องเป็นโฟลเดอร์' });
     return;
   }
 
@@ -1450,6 +1459,7 @@ const server = http.createServer(async (req, res) => {
         totalSize: body.totalSize,
         lastModified: body.lastModified,
         user: authUser,
+        createParents: body.createParents !== false,
       });
       if (sessionInfo.completed && sessionInfo.file) {
         logAuditEvent(
