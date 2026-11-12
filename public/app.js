@@ -47,6 +47,11 @@ function applyTheme(theme) {
   const loginBtn = document.getElementById('login-theme-toggle-btn');
   if (loginBtn) loginBtn.textContent = isLight ? '🌙' : '☀️';
 
+  const metaTheme = document.getElementById('meta-theme-color');
+  if (metaTheme) {
+    metaTheme.setAttribute('content', isLight ? '#F5F7FA' : '#121212');
+  }
+
   if (state.lastSystemStats) {
     renderTelemetryAreaChartAndAlerts(state.lastSystemStats);
   }
@@ -390,6 +395,11 @@ function enterAppScreen() {
   loadTrashCount();
   loadSharesCount();
   fetchSystemStats();
+
+  const urlTab = new URLSearchParams(window.location.search).get('tab');
+  if (urlTab && ['files', 'gallery', 'system', 'clipboard', 'indexer', 'favorites', 'shares', 'trash'].includes(urlTab)) {
+    switchTab(urlTab);
+  }
 
   if (state.statsTimer) clearInterval(state.statsTimer);
   state.statsTimer = setInterval(fetchSystemStats, 3000);
@@ -5426,5 +5436,96 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('refresh-processes-btn')?.addEventListener('click', () => {
     fetchTopProcessesTelemetry();
     showToast('อัปเดตรายการโปรเซสล่าสุดแล้ว', 'info');
+  });
+
+  // ================= PROGRESSIVE WEB APP (PWA) REGISTRATION & INSTALL FLOW =================
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {});
+    });
+  }
+
+  let deferredPwaPrompt = null;
+  const pwaInstallBtn = document.getElementById('pwa-install-btn');
+  const dropdownPwaInstallBtn = document.getElementById('dropdown-pwa-install-btn');
+  const pwaInstallModal = document.getElementById('pwa-install-modal');
+  const pwaNativeBox = document.getElementById('pwa-native-install-box');
+  const pwaTriggerNativeBtn = document.getElementById('pwa-trigger-native-btn');
+
+  function isRunningStandalone() {
+    return (
+      window.matchMedia('(display-mode: standalone)').matches ||
+      window.matchMedia('(display-mode: window-controls-overlay)').matches ||
+      window.navigator.standalone === true
+    );
+  }
+
+  function updatePwaInstallButtonsVisibility() {
+    const standalone = isRunningStandalone();
+    if (pwaInstallBtn) {
+      pwaInstallBtn.classList.toggle('hidden', standalone);
+    }
+    if (dropdownPwaInstallBtn) {
+      dropdownPwaInstallBtn.classList.toggle('hidden', standalone);
+    }
+  }
+
+  updatePwaInstallButtonsVisibility();
+  window.matchMedia('(display-mode: standalone)').addEventListener?.('change', updatePwaInstallButtonsVisibility);
+
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPwaPrompt = e;
+    if (pwaNativeBox) pwaNativeBox.classList.remove('hidden');
+    updatePwaInstallButtonsVisibility();
+  });
+
+  window.addEventListener('appinstalled', () => {
+    deferredPwaPrompt = null;
+    if (pwaNativeBox) pwaNativeBox.classList.add('hidden');
+    pwaInstallModal?.classList.add('hidden');
+    updatePwaInstallButtonsVisibility();
+    showToast('🎉 ติดตั้งแอป Personal NAS ลงบนเครื่องเรียบร้อยแล้ว!', 'success');
+  });
+
+  async function handlePwaInstallClick() {
+    document.getElementById('user-dropdown-menu')?.classList.add('hidden');
+    document.getElementById('topbar-user-menu-wrap')?.classList.remove('open');
+
+    if (deferredPwaPrompt) {
+      try {
+        deferredPwaPrompt.prompt();
+        const { outcome } = await deferredPwaPrompt.userChoice;
+        if (outcome === 'accepted') {
+          deferredPwaPrompt = null;
+          if (pwaNativeBox) pwaNativeBox.classList.add('hidden');
+        }
+        return;
+      } catch {
+        // Fallback to instructions modal
+      }
+    }
+    pwaInstallModal?.classList.remove('hidden');
+  }
+
+  pwaInstallBtn?.addEventListener('click', handlePwaInstallClick);
+  dropdownPwaInstallBtn?.addEventListener('click', handlePwaInstallClick);
+
+  pwaTriggerNativeBtn?.addEventListener('click', async () => {
+    if (!deferredPwaPrompt) return;
+    deferredPwaPrompt.prompt();
+    const { outcome } = await deferredPwaPrompt.userChoice;
+    if (outcome === 'accepted') {
+      deferredPwaPrompt = null;
+      pwaNativeBox?.classList.add('hidden');
+      pwaInstallModal?.classList.add('hidden');
+    }
+  });
+
+  document.getElementById('close-pwa-modal-btn')?.addEventListener('click', () => {
+    pwaInstallModal?.classList.add('hidden');
+  });
+  document.getElementById('ok-pwa-modal-btn')?.addEventListener('click', () => {
+    pwaInstallModal?.classList.add('hidden');
   });
 });

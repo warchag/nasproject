@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#181B20" />
+      <stop offset="100%" stop-color="#0D0F12" />
+    </linearGradient>
+    <linearGradient id="cyanGlow" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#00E5FF" />
+      <stop offset="100%" stop-color="#00B8D4" />
+    </linearGradient>
+    <linearGradient id="bayGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#23272E" />
+      <stop offset="100%" stop-color="#16191E" />
+    </linearGradient>
+  </defs>
+
+  <!-- App Icon Rounded Background -->
+  <rect width="512" height="512" rx="112" fill="url(#bgGrad)" />
+  <rect x="16" y="16" width="480" height="480" rx="98" fill="none" stroke="#00E5FF" stroke-opacity="0.22" stroke-width="4" />
+
+  <!-- Server Rack Bay 1 -->
+  <rect x="76" y="88" width="360" height="96" rx="24" fill="url(#bayGrad)" stroke="url(#cyanGlow)" stroke-width="10" />
+  <circle cx="136" cy="136" r="16" fill="#00E5FF" />
+  <circle cx="192" cy="136" r="16" fill="#32D74B" />
+  <rect x="256" y="124" width="132" height="24" rx="12" fill="#0D0F12" stroke="#2E3440" stroke-width="4" />
+
+  <!-- Server Rack Bay 2 -->
+  <rect x="76" y="212" width="360" height="96" rx="24" fill="url(#bayGrad)" stroke="url(#cyanGlow)" stroke-width="10" />
+  <circle cx="136" cy="260" r="16" fill="#00E5FF" />
+  <circle cx="192" cy="260" r="16" fill="#32D74B" />
+  <rect x="256" y="248" width="132" height="24" rx="12" fill="#0D0F12" stroke="#2E3440" stroke-width="4" />
+
+  <!-- WattVision Telemetry Pulse Wave -->
+  <path
+    d="M 86 392 L 178 392 L 218 340 L 268 438 L 312 368 L 346 392 L 426 392"
+    fill="none"
+    stroke="url(#cyanGlow)"
+    stroke-width="22"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>

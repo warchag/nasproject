@@ -2,20 +2,24 @@
 <html lang="th">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#121212" id="meta-theme-color" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Personal NAS" />
+  <meta name="application-name" content="Personal NAS" />
   <title>Personal NAS Server — WattVision Telemetry & Storage Control</title>
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+  <link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
     href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@600;700&display=swap"
     rel="stylesheet"
   />
-  <link
-    rel="icon"
-    type="image/svg+xml"
-    href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23121212'/%3E%3Crect x='10' y='12' width='44' height='12' rx='4' fill='%231E1E1E' stroke='%2300E5FF' stroke-width='2'/%3E%3Ccircle cx='18' cy='18' r='2.5' fill='%2300E5FF'/%3E%3Ccircle cx='26' cy='18' r='2.5' fill='%2332D74B'/%3E%3Crect x='10' y='28' width='44' height='12' rx='4' fill='%231E1E1E' stroke='%2300E5FF' stroke-width='2'/%3E%3Ccircle cx='18' cy='34' r='2.5' fill='%2300E5FF'/%3E%3Ccircle cx='26' cy='34' r='2.5' fill='%2332D74B'/%3E%3Cpath d='M12 50 L24 50 L29 44 L35 55 L40 48 L52 48' fill='none' stroke='%2300E5FF' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"
-  />
-  <link rel="stylesheet" href="/styles.css?v=34" />
+  <link rel="stylesheet" href="/styles.css?v=40" />
 </head>
 <body>
   <!-- Toast Notification Container -->
@@ -464,6 +468,11 @@
           </div>
 
           <div class="topbar-global-right">
+            <button type="button" class="btn btn-secondary pwa-install-top-btn" id="pwa-install-btn" title="ติดตั้งแอป Personal NAS ลงบนมือถือหรือคอมพิวเตอร์ (PWA)">
+              <span>📲</span>
+              <span class="pwa-install-label">ติดตั้งแอป</span>
+            </button>
+
             <button class="theme-toggle-btn js-theme-toggle" id="theme-toggle-btn" title="สลับโหมดมืด / โหมดสว่าง (Dark / Light Mode)">
               <span id="theme-toggle-icon">☀️</span>
               <span id="theme-toggle-label">โหมดสว่าง</span>
@@ -497,6 +506,11 @@
                 </div>
 
                 <div class="user-dropdown-divider"></div>
+
+                <button type="button" class="user-dropdown-item" id="dropdown-pwa-install-btn">
+                  <span style="font-size:16px;line-height:1;">📲</span>
+                  <span>ติดตั้งแอปลงเครื่อง (Install App)</span>
+                </button>
 
                 <button type="button" class="user-dropdown-item" id="change-password-btn">
                   <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -722,7 +736,7 @@
 
         <div class="sys-card" style="margin-bottom: 20px;">
           <form id="clipboard-form">
-            <div style="display:grid;grid-template-columns:1fr auto;gap:10px;margin-bottom:10px;">
+            <div class="clipboard-top-grid">
               <input
                 type="text"
                 id="clipboard-title-input"
@@ -892,7 +906,7 @@
                 <input type="checkbox" id="sched-auto-backup" style="width:18px;height:18px;" />
                 <label for="sched-auto-backup" style="margin:0;color:var(--text-primary);">เปิดใช้งานการสร้าง Backup Snapshot อัตโนมัติ</label>
               </div>
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <div class="responsive-grid-2">
                 <div class="form-group">
                   <label for="sched-interval-hours">ความถี่ในการสำรองข้อมูล (ชั่วโมง):</label>
                   <input type="number" id="sched-interval-hours" min="1" value="24" required />
@@ -1772,7 +1786,7 @@
         </div>
 
         <div id="batch-mode-pattern-box">
-          <div style="display:grid;grid-template-columns:2fr 1fr;gap:12px;">
+          <div class="batch-pattern-grid">
             <div class="form-group">
               <label for="batch-pattern-input">รูปแบบชื่อใหม่ (ใช้ `{n}` แทนตัวเลขลำดับ):</label>
               <input type="text" id="batch-pattern-input" value="File-{n}" placeholder="เช่น Japan-Trip-{n}" />
@@ -1785,7 +1799,7 @@
         </div>
 
         <div id="batch-mode-prefix-box" class="hidden">
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="responsive-grid-2">
             <div class="form-group">
               <label for="batch-prefix-input">คำนำหน้าชื่อไฟล์ (Prefix):</label>
               <input type="text" id="batch-prefix-input" placeholder="เช่น [2026]_" />
@@ -1798,7 +1812,7 @@
         </div>
 
         <div id="batch-mode-replace-box" class="hidden">
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="responsive-grid-2">
             <div class="form-group">
               <label for="batch-find-input">คำที่ต้องการค้นหา (Find):</label>
               <input type="text" id="batch-find-input" placeholder="คำเดิมในชื่อไฟล์..." />
@@ -1953,7 +1967,7 @@
         <button class="btn-close" id="close-image-studio-btn">✕</button>
       </div>
       <form id="image-studio-form" class="modal-body">
-        <div style="display:grid;grid-template-columns:220px 1fr;gap:20px;align-items:start;">
+        <div class="image-studio-grid">
           <div>
             <div class="file-thumb-box" style="height:170px;">
               <img id="image-studio-preview" src="" alt="Preview" />
@@ -1962,7 +1976,7 @@
           </div>
 
           <div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div class="responsive-grid-2">
               <div class="form-group">
                 <label for="img-rotate-select">🔄 หมุนภาพ (Rotate):</label>
                 <select id="img-rotate-select" class="folder-select">
@@ -1982,7 +1996,7 @@
               </div>
             </div>
 
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div class="responsive-grid-2">
               <div class="form-group">
                 <label for="img-resize-select">📐 ย่อขนาดภาพสูงสุด (Max Dimension):</label>
                 <select id="img-resize-select" class="folder-select">
@@ -2023,9 +2037,57 @@
     </div>
   </div>
 
+  <!-- ================= MODAL: PWA INSTALL APP GUIDE (iOS / ANDROID / DESKTOP) ================= -->
+  <div id="pwa-install-modal" class="modal-backdrop hidden">
+    <div class="modal-dialog" style="max-width:520px;">
+      <div class="modal-header">
+        <h3>📲 ติดตั้งแอป Personal NAS ลงบนเครื่อง (PWA)</h3>
+        <button class="btn-close" id="close-pwa-modal-btn">✕</button>
+      </div>
+      <div class="modal-body">
+        <div style="display:flex;align-items:center;gap:14px;padding:12px 14px;background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.28);border-radius:12px;margin-bottom:16px;">
+          <img src="/icon-192.png" alt="Personal NAS Icon" style="width:52px;height:52px;border-radius:12px;flex-shrink:0;" />
+          <div>
+            <strong style="font-size:15px;display:block;color:var(--text-primary);">Personal NAS OS — Standalone App</strong>
+            <span style="font-size:12.5px;color:var(--text-secondary);">เปิดใช้งานแบบเต็มหน้าจอ ไม่มีแถบ URL เบราว์เซอร์ เร็วและลื่นไหลเหมือนแอปเนทีฟ</span>
+          </div>
+        </div>
+
+        <div id="pwa-native-install-box" class="hidden" style="margin-bottom:16px;">
+          <button type="button" class="btn btn-primary btn-block" id="pwa-trigger-native-btn" style="height:46px;font-size:14.5px;">
+            🚀 กดที่นี่เพื่อติดตั้งแอปทันที (One-Click Install)
+          </button>
+        </div>
+
+        <div class="sys-stats-list" style="font-size:13px;line-height:1.65;gap:12px;">
+          <div style="padding:10px 12px;background:var(--bg-input);border-radius:10px;border:1px solid var(--border-color);">
+            <strong style="color:var(--primary);display:block;margin-bottom:4px;">🍎 สำหรับ iPhone / iPad (Safari):</strong>
+            1. กดปุ่ม <strong>แชร์ (Share ⬆️)</strong> ที่แถบเมนูด้านล่างหรือด้านบนของ Safari<br />
+            2. เลื่อนลงมาแล้วกดเลือก <strong>"เพิ่มไปยังหน้าจอโฮม" (Add to Home Screen ➕)</strong><br />
+            3. กด <strong>"เพิ่ม" (Add)</strong> มุมขวาบน แอปจะปรากฏบนหน้าจอโฮมทันที!
+          </div>
+
+          <div style="padding:10px 12px;background:var(--bg-input);border-radius:10px;border:1px solid var(--border-color);">
+            <strong style="color:var(--success);display:block;margin-bottom:4px;">🤖 สำหรับ Android (Chrome / Edge):</strong>
+            กดปุ่มเมนู <strong>⋮ (มุมขวาบน)</strong> ของเบราว์เซอร์ แล้วเลือก <strong>"ติดตั้งแอป" (Install app)</strong> หรือ <strong>"เพิ่มลงในหน้าจอหลัก"</strong>
+          </div>
+
+          <div style="padding:10px 12px;background:var(--bg-input);border-radius:10px;border:1px solid var(--border-color);">
+            <strong style="color:var(--text-primary);display:block;margin-bottom:4px;">💻 สำหรับ PC / Mac (Chrome / Edge / Safari):</strong>
+            คลิกไอคอน <strong>📥 ติดตั้ง (Install Personal NAS)</strong> ด้านขวาของแถบ URL ด้านบน หรือในเมนู <strong>File → Add to Dock (macOS Safari)</strong>
+          </div>
+        </div>
+
+        <div class="modal-footer" style="margin-top:16px;">
+          <button type="button" class="btn btn-secondary" id="ok-pwa-modal-btn">เข้าใจแล้ว</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- ================= PHASE 9: RIGHT-CLICK CONTEXT MENU ================= -->
   <div id="file-context-menu" class="file-context-menu hidden" role="menu"></div>
 
-  <script src="/app.js?v=32"></script>
+  <script src="/app.js?v=40"></script>
 </body>
 </html>

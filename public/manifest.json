@@ -1,0 +1,64 @@
+{
+  "id": "/",
+  "name": "Personal NAS OS — WattVision Private Cloud",
+  "short_name": "Personal NAS",
+  "description": "ระบบคลาวด์ส่วนตัว จัดการไฟล์ สตรีมสื่อ สำรองข้อมูล และจำลองไดรฟ์เครือข่าย (WebDAV)",
+  "lang": "th",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#121212",
+  "theme_color": "#121212",
+  "categories": ["productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "คลังไฟล์ทั้งหมด (Files)",
+      "short_name": "คลังไฟล์",
+      "description": "เปิดคลังไฟล์หลักของ NAS",
+      "url": "/?tab=files",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "แกลเลอรีรูปและวิดีโอ (Gallery)",
+      "short_name": "แกลเลอรี",
+      "description": "เปิดดูรูปภาพและวิดีโอทั้งหมดใน NAS",
+      "url": "/?tab=gallery",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "สถานะระบบฮาร์ดแวร์ (Telemetry)",
+      "short_name": "สถานะระบบ",
+      "description": "ตรวจสอบ CPU, RAM, พื้นที่ดิสก์ และเครือข่าย",
+      "url": "/?tab=system",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ]
+}

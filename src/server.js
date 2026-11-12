@@ -322,7 +322,12 @@ function serveStaticFile(req, res, pathname) {
     return;
   }
 
-  if (!fs.existsSync(safeStatic) || fs.statSync(safeStatic).isDirectory()) {
+  if (!fs.existsSync(safeStatic)) {
+    sendJson(res, 404, { error: 'Not Found' });
+    return;
+  }
+  const stat = fs.statSync(safeStatic);
+  if (stat.isDirectory()) {
     sendJson(res, 404, { error: 'Not Found' });
     return;
   }
@@ -332,13 +337,21 @@ function serveStaticFile(req, res, pathname) {
     '.html': 'text/html; charset=utf-8',
     '.css': 'text/css; charset=utf-8',
     '.js': 'text/javascript; charset=utf-8',
+    '.json': 'application/json; charset=utf-8',
+    '.webmanifest': 'application/manifest+json; charset=utf-8',
     '.svg': 'image/svg+xml',
     '.png': 'image/png',
     '.ico': 'image/x-icon',
   };
 
+  const contentType =
+    relPath === 'manifest.json'
+      ? 'application/manifest+json; charset=utf-8'
+      : staticMimes[ext] || 'application/octet-stream';
+
   res.writeHead(200, {
-    'Content-Type': staticMimes[ext] || 'application/octet-stream',
+    'Content-Type': contentType,
+    'Content-Length': stat.size,
     'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
     Pragma: 'no-cache',
     Expires: '0',
@@ -346,7 +359,12 @@ function serveStaticFile(req, res, pathname) {
     'X-Frame-Options': 'SAMEORIGIN',
     'Referrer-Policy': 'strict-origin-when-cross-origin',
     'Content-Security-Policy': "frame-ancestors 'self';",
+    ...(relPath === 'sw.js' ? { 'Service-Worker-Allowed': '/' } : {}),
   });
+  if (req.method === 'HEAD') {
+    res.end();
+    return;
+  }
   fs.createReadStream(safeStatic).pipe(res);
 }
 
