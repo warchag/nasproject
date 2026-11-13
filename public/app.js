@@ -349,6 +349,11 @@ async function checkSession() {
     }
   }
 
+  if (window.location.pathname === '/airdrop') {
+    initPublicAirDropScreen();
+    return;
+  }
+
   try {
     const data = await apiRequest('/api/auth/me');
     state.user = data.user;
@@ -642,6 +647,7 @@ function switchTab(tabName) {
   document.getElementById('view-favorites')?.classList.toggle('hidden', tabName !== 'favorites');
   document.getElementById('view-gallery')?.classList.toggle('hidden', tabName !== 'gallery');
   document.getElementById('view-clipboard')?.classList.toggle('hidden', tabName !== 'clipboard');
+  document.getElementById('view-airdrop')?.classList.toggle('hidden', tabName !== 'airdrop');
   document.getElementById('view-indexer').classList.toggle('hidden', tabName !== 'indexer');
   document.getElementById('view-analyzer')?.classList.toggle('hidden', tabName !== 'analyzer');
   document.getElementById('view-shares').classList.toggle('hidden', tabName !== 'shares');
@@ -673,6 +679,11 @@ function switchTab(tabName) {
     document.getElementById('view-header-title').textContent =
       '📋 คลิปบอร์ดและข้อความข้ามเครื่อง (Cross-Device Clipboard & Snippet Hub)';
     loadClipboardView();
+  } else if (tabName === 'airdrop') {
+    document.getElementById('view-header-title').textContent =
+      '📡 LAN AirDrop & Live Radar (ส่งไฟล์ข้ามเครื่องในวง Wi-Fi)';
+    const mount = document.getElementById('app-airdrop-mount');
+    if (mount) mountAirDropWorkspace(mount, { isPublic: false });
   } else if (tabName === 'indexer') {
     document.getElementById('view-header-title').textContent =
       '🔍 ค้นหาไฟล์ทั่วระบบ & ตรวจจับไฟล์ซ้ำ (Fast Indexer)';
@@ -5529,3 +5540,521 @@ document.addEventListener('DOMContentLoaded', () => {
     pwaInstallModal?.classList.add('hidden');
   });
 });
+
+
+// ================= LAN AIRDROP & LIVE RADAR ENGINE =================
+const airDropState = {
+  peerId: localStorage.getItem('nas_airdrop_peer_id') || '',
+  customName: localStorage.getItem('nas_airdrop_name') || '',
+  selfInfo: null,
+  peers: [],
+  selectedTargetId: '*',
+  inbox: [],
+  eventSource: null,
+  lanUrls: [],
+  activeMount: null,
+};
+
+if (!airDropState.peerId || !/^[a-zA-Z0-9_-]{8,64}$/.test(airDropState.peerId)) {
+  airDropState.peerId =
+    'peer_' +
+    Array.from(crypto.getRandomValues(new Uint8Array(10)))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+  localStorage.setItem('nas_airdrop_peer_id', airDropState.peerId);
+}
+
+function getAirDropDeviceIcon(deviceType) {
+  if (deviceType === 'mobile') return '📱';
+  if (deviceType === 'tablet') return '📟';
+  return '💻';
+}
+
+function initPublicAirDropScreen() {
+  document.getElementById('login-screen')?.classList.add('hidden');
+  document.getElementById('app-screen')?.classList.add('hidden');
+  document.getElementById('public-share-screen')?.classList.add('hidden');
+  document.getElementById('public-drop-screen')?.classList.add('hidden');
+  const screen = document.getElementById('public-airdrop-screen');
+  screen?.classList.remove('hidden');
+
+  const mount = document.getElementById('public-airdrop-mount');
+  if (mount) {
+    mountAirDropWorkspace(mount, { isPublic: true });
+  }
+}
+
+function mountAirDropWorkspace(containerEl, { isPublic = false } = {}) {
+  if (!containerEl) return;
+  airDropState.activeMount = containerEl;
+
+  containerEl.innerHTML = `
+    <div class="airdrop-grid">
+      <!-- Left: Live Radar & Send Panel -->
+      <div class="sys-card airdrop-radar-card">
+        <div class="airdrop-self-bar">
+          <div style="display:flex;align-items:center;gap:10px;min-width:0;flex:1;">
+            <span id="ad-conn-dot" class="airdrop-status-dot"></span>
+            <div style="min-width:0;">
+              <div style="font-size:12px;color:var(--text-secondary);">ชื่อเครื่องของคุณบนเรดาร์</div>
+              <strong id="ad-self-name" style="font-size:14.5px;color:var(--primary);word-break:break-word;">กำลังเชื่อมต่อ...</strong>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+            <button type="button" class="btn btn-secondary btn-sm" id="ad-rename-btn">✏️ เปลี่ยนชื่อเครื่อง</button>
+            <button type="button" class="btn btn-secondary btn-sm" id="ad-qr-btn">📱 QR เปิดบนมือถือ</button>
+          </div>
+        </div>
+
+        <div class="radar-stage" id="ad-radar-stage">
+          <div class="radar-rings">
+            <div class="radar-ring r1"></div>
+            <div class="radar-ring r2"></div>
+            <div class="radar-ring r3"></div>
+            <div class="radar-ring pulse"></div>
+          </div>
+
+          <div id="ad-peers-grid" class="radar-peers-grid"></div>
+
+          <div class="radar-self-node">
+            <span id="ad-self-icon">💻</span>
+            <span>คุณอยู่ที่นี่</span>
+          </div>
+        </div>
+
+        <!-- Quick Send Box -->
+        <div class="airdrop-send-box">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+            <label for="ad-target-select" style="font-size:13px;font-weight:600;">🎯 ส่งไปยังอุปกรณ์:</label>
+            <select id="ad-target-select" class="sort-select" style="flex:1;min-width:180px;">
+              <option value="*">📢 ส่งถึงทุกเครื่องในเรดาร์ (Broadcast)</option>
+            </select>
+          </div>
+
+          <div class="airdrop-drop-zone" id="ad-drop-zone">
+            <input type="file" id="ad-file-input" multiple class="hidden" />
+            <div style="font-size:26px;margin-bottom:4px;">📤</div>
+            <strong style="font-size:13.5px;display:block;">คลิกเพื่อเลือกไฟล์ หรือ ลากไฟล์มาวางที่นี่</strong>
+            <span style="font-size:12px;color:var(--text-secondary);">หรือลากไฟล์ไปวางบนไอคอนเครื่องด้านบนได้โดยตรง (สูงสุด 2 GB/ไฟล์)</span>
+          </div>
+
+          <div id="ad-upload-progress-wrap" class="hidden" style="padding:8px 10px;background:var(--bg-card);border-radius:10px;border:1px solid var(--border-color);">
+            <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px;">
+              <span id="ad-upload-label">กำลังส่งไฟล์...</span>
+              <strong id="ad-upload-pct" style="color:var(--primary);">0%</strong>
+            </div>
+            <div class="progress-bar"><div class="progress-fill" id="ad-upload-bar" style="width:0%;"></div></div>
+          </div>
+
+          <form id="ad-text-form" style="display:flex;gap:8px;flex-wrap:wrap;">
+            <input
+              type="text"
+              id="ad-text-input"
+              placeholder="ส่งข้อความ หรือ ลิงก์ข้ามเครื่องทันที..."
+              style="flex:1;min-width:180px;padding:9px 12px;border-radius:8px;border:1px solid var(--border-color);background:var(--bg-card);color:var(--text-primary);"
+              required
+            />
+            <button type="submit" class="btn btn-primary btn-sm">⚡ ส่งข้อความ</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Right: Live Incoming Inbox -->
+      <div class="sys-card" style="display:flex;flex-direction:column;gap:12px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+          <div>
+            <h3 style="margin:0;font-size:16px;">📥 กล่องรับไฟล์ & ข้อความขาเข้า</h3>
+            <p style="margin:2px 0 0;font-size:12px;color:var(--text-secondary);">ไฟล์ที่ส่งเข้ามาจะแสดงที่นี่แบบ Real-time (พักไฟล์ชั่วคราว 15 นาที)</p>
+          </div>
+          <button type="button" class="btn btn-secondary btn-sm" id="ad-clear-inbox-btn">🧹 ล้างรายการ</button>
+        </div>
+
+        <div id="ad-inbox-list" class="airdrop-inbox-list"></div>
+      </div>
+    </div>
+  `;
+
+  // Bind UI Events
+  const dropZone = containerEl.querySelector('#ad-drop-zone');
+  const fileInput = containerEl.querySelector('#ad-file-input');
+  const targetSelect = containerEl.querySelector('#ad-target-select');
+
+  dropZone?.addEventListener('click', () => fileInput?.click());
+  fileInput?.addEventListener('change', (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length > 0) {
+      sendFilesViaAirdrop(files, targetSelect?.value || '*');
+    }
+    fileInput.value = '';
+  });
+
+  dropZone?.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropZone.classList.add('drag-over');
+  });
+  dropZone?.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+  dropZone?.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    const files = Array.from(e.dataTransfer?.files || []);
+    if (files.length > 0) {
+      sendFilesViaAirdrop(files, targetSelect?.value || '*');
+    }
+  });
+
+  targetSelect?.addEventListener('change', (e) => {
+    airDropState.selectedTargetId = e.target.value;
+    renderAirDropPeers();
+  });
+
+  containerEl.querySelector('#ad-text-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const input = containerEl.querySelector('#ad-text-input');
+    const text = input?.value.trim();
+    if (!text) return;
+    try {
+      const res = await apiRequest('/api/airdrop/send-text', {
+        method: 'POST',
+        body: {
+          fromPeerId: airDropState.peerId,
+          toPeerId: targetSelect?.value || '*',
+          text,
+        },
+      });
+      input.value = '';
+      showToast(`⚡ ส่งข้อความไปยัง ${res.deliveredCount} เครื่องแล้ว`, 'success');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+
+  containerEl.querySelector('#ad-rename-btn')?.addEventListener('click', async () => {
+    const current = airDropState.selfInfo?.name || airDropState.customName || '';
+    const nextName = window.prompt('ตั้งชื่ออุปกรณ์ของคุณบนเรดาร์ LAN AirDrop:', current);
+    if (!nextName || !nextName.trim()) return;
+    airDropState.customName = nextName.trim();
+    localStorage.setItem('nas_airdrop_name', airDropState.customName);
+    try {
+      const res = await apiRequest('/api/airdrop/rename', {
+        method: 'POST',
+        body: { peerId: airDropState.peerId, name: airDropState.customName },
+      });
+      if (airDropState.selfInfo) airDropState.selfInfo.name = res.name;
+      const selfNameEl = containerEl.querySelector('#ad-self-name');
+      if (selfNameEl) selfNameEl.textContent = res.name;
+      showToast(`เปลี่ยนชื่อเครื่องเป็น "${res.name}" แล้ว`, 'success');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+
+  containerEl.querySelector('#ad-qr-btn')?.addEventListener('click', async () => {
+    const joinUrl =
+      airDropState.lanUrls[0] || `${window.location.origin}/airdrop`;
+    try {
+      const data = await apiRequest(`/api/airdrop/qr?text=${encodeURIComponent(joinUrl)}`);
+      const modal = document.getElementById('qr-modal');
+      const svgBox = document.getElementById('qr-svg-container');
+      const urlInput = document.getElementById('qr-url-input');
+      const titleEl = document.getElementById('qr-modal-title');
+      const subEl = document.getElementById('qr-modal-subtitle');
+      if (modal && svgBox && urlInput) {
+        state.currentQrUrl = joinUrl;
+        if (titleEl) titleEl.textContent = '📡 สแกนเพื่อเปิด LAN AirDrop บนมือถือ';
+        if (subEl) subEl.textContent = 'มือถือในวง Wi-Fi เดียวกันสแกนแล้วส่งไฟล์ข้ามเครื่องได้ทันทีโดยไม่ต้องล็อกอิน';
+        svgBox.innerHTML = data.svg;
+        urlInput.value = joinUrl;
+        modal.classList.remove('hidden');
+      }
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+
+  containerEl.querySelector('#ad-clear-inbox-btn')?.addEventListener('click', () => {
+    airDropState.inbox = [];
+    renderAirDropInbox(isPublic);
+  });
+
+  connectAirDropEvents();
+  renderAirDropPeers();
+  renderAirDropInbox(isPublic);
+}
+
+function connectAirDropEvents() {
+  if (airDropState.eventSource) {
+    airDropState.eventSource.close();
+    airDropState.eventSource = null;
+  }
+
+  const params = new URLSearchParams({ peerId: airDropState.peerId });
+  if (airDropState.customName) params.set('name', airDropState.customName);
+
+  const es = new EventSource(`/api/airdrop/events?${params.toString()}`);
+  airDropState.eventSource = es;
+
+  const setOnline = (online) => {
+    const dot = airDropState.activeMount?.querySelector('#ad-conn-dot');
+    if (dot) dot.classList.toggle('offline', !online);
+  };
+
+  es.addEventListener('open', () => setOnline(true));
+  es.addEventListener('error', () => setOnline(false));
+
+  es.addEventListener('welcome', (e) => {
+    setOnline(true);
+    try {
+      const data = JSON.parse(e.data);
+      airDropState.selfInfo = data.self;
+      airDropState.lanUrls = data.lanUrls || [];
+      const nameEl = airDropState.activeMount?.querySelector('#ad-self-name');
+      const iconEl = airDropState.activeMount?.querySelector('#ad-self-icon');
+      if (nameEl && data.self) nameEl.textContent = `${data.self.name} (${data.self.ip})`;
+      if (iconEl && data.self) iconEl.textContent = getAirDropDeviceIcon(data.self.deviceType);
+    } catch {
+      // Ignore
+    }
+  });
+
+  es.addEventListener('peers', (e) => {
+    try {
+      const data = JSON.parse(e.data);
+      airDropState.peers = (data.peers || []).filter((p) => p.peerId !== airDropState.peerId);
+      renderAirDropPeers();
+    } catch {
+      // Ignore
+    }
+  });
+
+  es.addEventListener('incoming-text', (e) => {
+    try {
+      const item = JSON.parse(e.data);
+      airDropState.inbox.unshift({ ...item, unread: true });
+      renderAirDropInbox(!state.user);
+      showToast(`💬 ข้อความใหม่จาก ${item.fromName}`, 'info');
+    } catch {
+      // Ignore
+    }
+  });
+
+  es.addEventListener('incoming-file', (e) => {
+    try {
+      const item = JSON.parse(e.data);
+      airDropState.inbox.unshift({ ...item, unread: true });
+      renderAirDropInbox(!state.user);
+      showToast(`📦 ${item.fromName} ส่งไฟล์ "${item.filename}" มาให้คุณ!`, 'success');
+    } catch {
+      // Ignore
+    }
+  });
+}
+
+function renderAirDropPeers() {
+  const mount = airDropState.activeMount;
+  if (!mount) return;
+  const grid = mount.querySelector('#ad-peers-grid');
+  const select = mount.querySelector('#ad-target-select');
+  if (!grid || !select) return;
+
+  const others = airDropState.peers || [];
+
+  // Sync select options
+  const prevVal = airDropState.selectedTargetId || '*';
+  select.innerHTML = '<option value="*">📢 ส่งถึงทุกเครื่องในเรดาร์ (Broadcast)</option>';
+  others.forEach((p) => {
+    const opt = document.createElement('option');
+    opt.value = p.peerId;
+    opt.textContent = `${getAirDropDeviceIcon(p.deviceType)} ${p.name} (${p.ip})`;
+    select.appendChild(opt);
+  });
+  select.value = others.some((p) => p.peerId === prevVal) ? prevVal : '*';
+  airDropState.selectedTargetId = select.value;
+
+  grid.innerHTML = '';
+  if (others.length === 0) {
+    grid.innerHTML = `
+      <div style="text-align:center;padding:18px 14px;color:var(--text-secondary);font-size:13px;max-width:300px;">
+        <div style="font-size:28px;margin-bottom:6px;">📡</div>
+        กำลังสแกนหาอุปกรณ์อื่นในวง Wi-Fi...<br />
+        <small>เปิดหน้า <code>/airdrop</code> บนมือถือหรือเครื่องอื่นในวงเดียวกันเพื่อปรากฏบนเรดาร์นี้</small>
+      </div>
+    `;
+    return;
+  }
+
+  others.forEach((p) => {
+    const node = document.createElement('div');
+    node.className = `radar-peer-node ${airDropState.selectedTargetId === p.peerId ? 'selected' : ''}`;
+    node.title = `คลิกเพื่อเลือกส่งให้ ${p.name} หรือลากไฟล์มาวางที่นี่`;
+    node.innerHTML = `
+      <div class="radar-peer-avatar">${getAirDropDeviceIcon(p.deviceType)}</div>
+      <div class="radar-peer-name">${escapeHtml(p.name)}</div>
+      <div class="radar-peer-meta">${escapeHtml(p.ip)}</div>
+    `;
+
+    node.addEventListener('click', () => {
+      airDropState.selectedTargetId = p.peerId;
+      select.value = p.peerId;
+      renderAirDropPeers();
+      mount.querySelector('#ad-file-input')?.click();
+    });
+
+    node.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      node.classList.add('drag-over');
+    });
+    node.addEventListener('dragleave', () => node.classList.remove('drag-over'));
+    node.addEventListener('drop', (e) => {
+      e.preventDefault();
+      node.classList.remove('drag-over');
+      const files = Array.from(e.dataTransfer?.files || []);
+      if (files.length > 0) {
+        sendFilesViaAirdrop(files, p.peerId);
+      }
+    });
+
+    grid.appendChild(node);
+  });
+}
+
+async function sendFilesViaAirdrop(files, toPeerId) {
+  const mount = airDropState.activeMount;
+  const wrap = mount?.querySelector('#ad-upload-progress-wrap');
+  const label = mount?.querySelector('#ad-upload-label');
+  const pctEl = mount?.querySelector('#ad-upload-pct');
+  const barEl = mount?.querySelector('#ad-upload-bar');
+
+  wrap?.classList.remove('hidden');
+
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    if (label) label.textContent = `กำลังส่ง (${i + 1}/${files.length}): ${file.name}`;
+    if (pctEl) pctEl.textContent = '0%';
+    if (barEl) barEl.style.width = '0%';
+
+    try {
+      const res = await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        const url = `/api/airdrop/send-file?fromPeerId=${encodeURIComponent(airDropState.peerId)}&toPeerId=${encodeURIComponent(toPeerId)}&filename=${encodeURIComponent(file.name)}`;
+        xhr.open('POST', url, true);
+        xhr.upload.onprogress = (ev) => {
+          if (ev.lengthComputable) {
+            const pct = Math.round((ev.loaded / ev.total) * 100);
+            if (pctEl) pctEl.textContent = `${pct}%`;
+            if (barEl) barEl.style.width = `${pct}%`;
+          }
+        };
+        xhr.onload = () => {
+          try {
+            const parsed = JSON.parse(xhr.responseText || '{}');
+            if (xhr.status >= 200 && xhr.status < 300) {
+              resolve(parsed);
+            } else {
+              reject(new Error(parsed.error || 'ส่งไฟล์ไม่สำเร็จ'));
+            }
+          } catch {
+            reject(new Error('ส่งไฟล์ไม่สำเร็จ'));
+          }
+        };
+        xhr.onerror = () => reject(new Error('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้'));
+        xhr.send(file);
+      });
+      showToast(`🚀 ส่ง "${file.name}" สำเร็จ (${res.deliveredCount} เครื่องรับ)`, 'success');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  }
+
+  setTimeout(() => wrap?.classList.add('hidden'), 1200);
+}
+
+function renderAirDropInbox(isPublic) {
+  const mount = airDropState.activeMount;
+  if (!mount) return;
+  const list = mount.querySelector('#ad-inbox-list');
+  if (!list) return;
+
+  if (airDropState.inbox.length === 0) {
+    list.innerHTML = `
+      <div class="empty-state" style="padding:36px 16px;">
+        <div class="empty-icon">📭</div>
+        <h3 style="font-size:15px;">ยังไม่มีไฟล์หรือข้อความส่งเข้ามา</h3>
+        <p style="font-size:12.5px;">เมื่อเครื่องอื่นในวง Wi-Fi ส่งไฟล์มาให้คุณ รายการจะเด้งขึ้นมาที่นี่ทันที</p>
+      </div>
+    `;
+    return;
+  }
+
+  list.innerHTML = '';
+  airDropState.inbox.forEach((item, idx) => {
+    const card = document.createElement('div');
+    card.className = `airdrop-transfer-card ${item.unread ? 'unread' : ''}`;
+
+    if (item.kind === 'text') {
+      card.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+          <strong style="font-size:13px;color:var(--primary);">💬 จาก ${escapeHtml(item.fromName)}</strong>
+          <small style="font-size:11px;color:var(--text-secondary);">${formatDate(item.createdAt)}</small>
+        </div>
+        <div style="padding:8px 10px;background:var(--bg-card);border-radius:8px;font-size:13px;word-break:break-word;white-space:pre-wrap;">${escapeHtml(item.text)}</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <button type="button" class="btn btn-primary btn-sm btn-copy-ad-text">📋 คัดลอกข้อความ</button>
+          <button type="button" class="btn btn-secondary btn-sm btn-dismiss-ad">✕ ลบ</button>
+        </div>
+      `;
+      card.querySelector('.btn-copy-ad-text')?.addEventListener('click', () => {
+        navigator.clipboard?.writeText(item.text);
+        item.unread = false;
+        showToast('คัดลอกข้อความแล้ว!', 'success');
+        renderAirDropInbox(isPublic);
+      });
+      card.querySelector('.btn-dismiss-ad')?.addEventListener('click', () => {
+        airDropState.inbox.splice(idx, 1);
+        renderAirDropInbox(isPublic);
+      });
+    } else {
+      const dlUrl = `/api/airdrop/download/${encodeURIComponent(item.transferId)}?peerId=${encodeURIComponent(airDropState.peerId)}`;
+      const canSaveNas = Boolean(state.user && !isPublic);
+      card.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+          <strong style="font-size:13px;color:var(--primary);">${getCategoryIcon(item.category, false)} จาก ${escapeHtml(item.fromName)}</strong>
+          <small style="font-size:11px;color:var(--text-secondary);">${formatBytes(item.size)} • ${formatDate(item.createdAt)}</small>
+        </div>
+        <div style="font-size:14px;font-weight:600;word-break:break-word;">${escapeHtml(item.filename)}</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <a href="${dlUrl}" download class="btn btn-primary btn-sm" style="text-decoration:none;">⬇️ ดาวน์โหลดลงเครื่อง</a>
+          ${canSaveNas ? '<button type="button" class="btn btn-secondary btn-sm btn-save-ad-nas">💾 บันทึกเข้า NAS (/AirDrop)</button>' : ''}
+          <button type="button" class="btn btn-danger btn-sm btn-dismiss-ad">✕ ลบออก</button>
+        </div>
+      `;
+      card.querySelector('.btn-save-ad-nas')?.addEventListener('click', async () => {
+        try {
+          const res = await apiRequest('/api/airdrop/save-to-nas', {
+            method: 'POST',
+            body: { transferId: item.transferId, peerId: airDropState.peerId },
+          });
+          item.unread = false;
+          showToast(res.message, 'success');
+          fetchSystemStats();
+          renderAirDropInbox(isPublic);
+        } catch (err) {
+          showToast(err.message, 'error');
+        }
+      });
+      card.querySelector('.btn-dismiss-ad')?.addEventListener('click', async () => {
+        try {
+          await apiRequest(`/api/airdrop/decline/${encodeURIComponent(item.transferId)}`, {
+            method: 'POST',
+            body: { peerId: airDropState.peerId },
+          });
+        } catch {
+          // Ignore
+        }
+        airDropState.inbox.splice(idx, 1);
+        renderAirDropInbox(isPublic);
+      });
+    }
+
+    list.appendChild(card);
+  });
+}

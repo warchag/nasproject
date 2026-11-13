@@ -129,6 +129,15 @@ const {
   getRecentFiles,
   getTopSystemProcesses,
 } = require('./phase9');
+const {
+  handleAirdropEvents,
+  handleRenamePeer,
+  handleSendAirdropText,
+  handleAirdropFileUpload,
+  handleAirdropFileDownload,
+  handleSaveAirdropToNas,
+  handleDeclineAirdrop,
+} = require('./airdrop');
 
 const PORT = Number(process.env.PORT || 8080);
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
@@ -312,9 +321,11 @@ function readJsonBody(req, maxBytes = 2 * 1024 * 1024) {
 }
 
 function serveStaticFile(req, res, pathname) {
-  // Support public share URLs (/s/:token) and public drop URLs (/d/:token) by serving index.html
+  // Support public share URLs (/s/:token), public drop URLs (/d/:token), and /airdrop by serving index.html
   const effectivePath =
-    pathname.startsWith('/s/') || pathname.startsWith('/d/') ? '/' : pathname;
+    pathname.startsWith('/s/') || pathname.startsWith('/d/') || pathname === '/airdrop'
+      ? '/'
+      : pathname;
   const relPath = effectivePath === '/' ? 'index.html' : effectivePath.replace(/^\/+/, '');
   const safeStatic = path.resolve(PUBLIC_DIR, relPath);
   if (!safeStatic.startsWith(PUBLIC_DIR)) {
@@ -970,6 +981,56 @@ const server = http.createServer(async (req, res) => {
         handlePublicDropUpload(req, res, reqRec, filename, sender, sendJson);
         return;
       }
+    }
+
+    // ================= LAN AIRDROP & LIVE RADAR APIs (NO LOGIN REQUIRED) =================
+    if (pathname === '/api/airdrop/events' && method === 'GET') {
+      handleAirdropEvents(req, res, urlObj, getClientIp(req));
+      return;
+    }
+
+    if (pathname === '/api/airdrop/rename' && method === 'POST') {
+      const body = await readJsonBody(req);
+      const updated = handleRenamePeer(body);
+      sendJson(res, 200, updated);
+      return;
+    }
+
+    if (pathname === '/api/airdrop/send-text' && method === 'POST') {
+      const body = await readJsonBody(req);
+      const result = handleSendAirdropText(body);
+      sendJson(res, 200, {
+        message: 'ส่งข้อความ/ลิงก์ไปยังอุปกรณ์ปลายทางแล้ว',
+        ...result,
+      });
+      return;
+    }
+
+    if (pathname === '/api/airdrop/send-file' && method === 'POST') {
+      handleAirdropFileUpload(req, res, urlObj, sendJson);
+      return;
+    }
+
+    if (pathname.startsWith('/api/airdrop/download/') && method === 'GET') {
+      const transferId = decodeURIComponent(pathname.slice('/api/airdrop/download/'.length));
+      const peerId = urlObj.searchParams.get('peerId') || '';
+      handleAirdropFileDownload(req, res, transferId, peerId, sendJson);
+      return;
+    }
+
+    if (pathname.startsWith('/api/airdrop/decline/') && method === 'POST') {
+      const transferId = decodeURIComponent(pathname.slice('/api/airdrop/decline/'.length));
+      const body = await readJsonBody(req);
+      const result = handleDeclineAirdrop(transferId, body.peerId || '');
+      sendJson(res, 200, result);
+      return;
+    }
+
+    if (pathname === '/api/airdrop/qr' && method === 'GET') {
+      const text = urlObj.searchParams.get('text') || `http://${req.headers.host || `localhost:${PORT}`}/airdrop`;
+      const svg = generateQrSvg(text);
+      sendJson(res, 200, { text, svg });
+      return;
     }
 
     // ================= AUTH APIs =================
@@ -2144,6 +2205,24 @@ const server = http.createServer(async (req, res) => {
       const limit = Number(urlObj.searchParams.get('limit') || 10);
       const report = getTopSystemProcesses(limit);
       sendJson(res, 200, report);
+      return;
+    }
+
+    // Save incoming LAN AirDrop file directly into logged-in user's /AirDrop folder
+    if (pathname === '/api/airdrop/save-to-nas' && method === 'POST') {
+      const body = await readJsonBody(req);
+      const saved = handleSaveAirdropToNas(authUser, body.transferId || '', body.peerId || '');
+      logAuditEvent(
+        req,
+        authUser.username,
+        'AIRDROP_SAVE_NAS',
+        saved.savedPath,
+        `บันทึกไฟล์จาก LAN AirDrop "${saved.filename}" เข้า NAS`
+      );
+      sendJson(res, 200, {
+        message: `บันทึกไฟล์ "${saved.filename}" เข้าโฟลเดอร์ /AirDrop ใน NAS แล้ว!`,
+        ...saved,
+      });
       return;
     }
 
